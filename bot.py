@@ -61,11 +61,15 @@ def fetch_items():
 
 def make_post(item):
     if not OPENAI_KEY:
+        excerpt = item["summary"][:650].strip()
+        body = f"📰 {item['title']}\n\n"
+        if excerpt:
+            body += excerpt + "\n\n"
         return (
-            f"📰 {item['title']}\n\n"
-            f"منبع: {item['source']}\n"
-            f"🔗 {item['link']}\n\n"
-            "اتاق وضعیت | خبر با منبع"
+            body
+            + f"منبع: {item['source']}\n"
+            + f"🔗 {item['link']}\n\n"
+            + "اتاق وضعیت | خبر با منبع"
         )
 
     prompt = (
