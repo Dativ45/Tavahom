@@ -7,8 +7,10 @@ from pathlib import Path
 import feedparser
 import requests
 
-BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-CHANNEL = os.environ["TELEGRAM_CHAT_ID"]
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHANNEL = os.getenv("TELEGRAM_CHAT_ID")
+if not BOT_TOKEN or not CHANNEL:
+    raise SystemExit("Missing GitHub Actions secrets: TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 STATE_FILE = Path("state.json")
