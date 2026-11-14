@@ -119,10 +119,15 @@ def publish(message):
         },
         timeout=30,
     )
-    response.raise_for_status()
-    payload = response.json()
-    if not payload.get("ok"):
-        raise RuntimeError(f"Telegram API error: {payload}")
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {"description": response.text[:1000]}
+    if not response.ok or not payload.get("ok"):
+        description = payload.get("description", payload)
+        raise RuntimeError(
+            f"Telegram API error ({response.status_code}): {description}"
+        )
 
 def main():
     state = load_state()
