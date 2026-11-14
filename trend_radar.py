@@ -155,7 +155,7 @@ def select_and_write(candidates):
     } for x in candidates]
     prompt = (
         "You are the careful Persian trend editor for Status Room, an Iranian family-friendly news channel. "
-        "Select at most 3 genuinely useful current trend topics from the supplied signals. "
+        "Select at most 3 genuinely useful current trend topics from the supplied signals. The output field topic MUST copy the candidate topic text verbatim, character-for-character; never translate or paraphrase it. "
         "Do not invent facts, causes, numbers, quotes, virality, or context. A Google Trends item is a search-interest "
         "signal, NOT proof of a viral event or public opinion. If GDELT coverage is zero, keep the wording explicitly "
         "about search interest only. Prefer cross-region signals, meaningful public-interest topics, technology, "
@@ -312,3 +312,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+\n# Scoped workflow test trigger.\n
