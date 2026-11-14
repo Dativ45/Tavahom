@@ -13,7 +13,7 @@ if not BOT_TOKEN or not CHANNEL or not GEMINI_KEY:
     raise SystemExit("Missing required Telegram or Gemini secrets.")
 
 now = datetime.now(ZoneInfo("Asia/Tehran"))
-slot = "صبح" if now.hour < 14 else "شب"
+slot = "صبح" if 4 <= now.hour < 12 else "شب"
 if slot == "صبح":
     brief = (
         "یک پیام صبحگاهی فارسی برای کانال خبری Status Room بنویس؛ گرم، کوتاه، "
