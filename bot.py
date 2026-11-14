@@ -42,6 +42,9 @@ FEEDS = [
 
 DESK_ALIASES = {
     "ورزش": "ضربان",
+    "جنگ و امنیت": "سایه‌نویس",
+    "مهاجرت": "اطلس",
+    "معیشت": "تراز",
     "سیاست": "آینه",
     "اقتصاد": "تراز",
     "فناوری": "پیکسل",
@@ -128,7 +131,7 @@ def translate_and_classify(item):
         "quotes, causes, numbers, or certainty absent from the source. translation_fa must be a "
         "faithful Persian translation of the supplied excerpt, not an invented full-article translation. "
         "summary_fa is a concise 1-2 sentence Persian digest. Choose exactly one desk from: "
-        "ورزش، سیاست، اقتصاد، فناوری، فرهنگ و جامعه، علم و سلامت، محیط زیست، بین‌الملل. "
+        "ورزش، سیاست، اقتصاد، معیشت، مهاجرت، جنگ و امنیت، فناوری، فرهنگ و جامعه، علم و سلامت، محیط زیست، بین‌الملل. "
         "If the excerpt is empty, say that the source feed provided only a headline.\\n\\n"
         + json.dumps({"source": item["source"], "headline": item["title"], "excerpt": item["summary"]}, ensure_ascii=False)
     )
@@ -174,6 +177,8 @@ def translate_and_classify(item):
 
 def build_post(item, translated, source_count):
     alias = DESK_ALIASES.get(translated["desk"], "اطلس")
+    tags = {"ورزش": "#ورزش", "جنگ و امنیت": "#جنگ_و_امنیت", "مهاجرت": "#مهاجرت", "معیشت": "#معیشت", "اقتصاد": "#اقتصاد", "بین‌الملل": "#بین_الملل"}
+    tag = tags.get(translated["desk"], "#اتاق_وضعیت")
     if source_count >= 2:
         status = "🔎 <b>چندمنبعی | در حال بررسی تحریریه</b>"
         status_note = f"بازتاب مشابه در {source_count} دامنه مستقلِ خوراک‌ها پیدا شد؛ این به‌تنهایی تأیید قطعی خبر نیست."
@@ -188,7 +193,7 @@ def build_post(item, translated, source_count):
     if item["summary"]:
         original += "\n\n" + item["summary"][:900]
     return (
-        "🛰️ <b>اتاق وضعیت | گزارش بین‌الملل</b>\n"
+        "🛰️ <b>اتاق وضعیت | گزارش " + html.escape(translated["desk"]) + "</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
         + status + "\n"
         + html.escape(status_note) + "\n\n"
@@ -201,6 +206,7 @@ def build_post(item, translated, source_count):
         + html.escape(translated["summary_fa"][:450]) + "\n\n"
         + "━━━━━━━━━━━━━━━━━━\n"
         + f"🗞 منبع: {html.escape(item['source'])}\n"
+        + tag + "\\n"
         + f"🕒 زمان منبع: {html.escape(published)}\n"
         + f"🔗 <a href=\"{html.escape(item['link'], quote=True)}\">مشاهده منبع اصلی</a>\n\n"
         + f"— <b>{html.escape(alias)}</b> | تحریریه {html.escape(translated['desk'])}\n"
@@ -224,9 +230,40 @@ def publish(message):
         payload = {"description": response.text[:1000]}
     if not response.ok or not payload.get("ok"):
         raise RuntimeError(f"Telegram API error ({response.status_code}): {payload.get('description', payload)}")
+    return payload.get("result", {}).get("message_id")
+
+
+def ensure_navigation(state):
+    if state.get("navigation_message_id"):
+        return
+    navigation = (
+        "📌 <b>راهنمای آرشیو اتاق وضعیت</b>\\n"
+        "━━━━━━━━━━━━━━━━━━\\n"
+        "🌍 مهاجرت: #مهاجرت\\n"
+        "🧺 معیشت: #معیشت و #اقتصاد\\n"
+        "⚠️ جنگ و امنیت: #جنگ_و_امنیت\\n"
+        "🏅 ورزش: #ورزش\\n\\n"
+        "برای دیدن سابقه هر بخش، روی هشتگ همان بخش بزنید.\\n"
+        "خبرها همراه تاریخ، منبع و وضعیت اعتبار منتشر می‌شوند."
+    )
+    message_id = publish(navigation)
+    if not message_id:
+        raise RuntimeError("Telegram returned no message ID for archive index.")
+    response = requests.post(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/pinChatMessage",
+        json={"chat_id": CHANNEL, "message_id": message_id, "disable_notification": True},
+        timeout=35,
+    )
+    payload = response.json()
+    if not response.ok or not payload.get("ok"):
+        raise RuntimeError("Telegram could not pin archive index: " + str(payload.get("description", payload)))
+    state["navigation_message_id"] = message_id
+    save_state(state)
+    print("Pinned archive navigation message: " + str(message_id))
 
 def main():
     state = load_state()
+    ensure_navigation(state)
     seen = set(state.get("seen", []))
     all_items = fetch_items()
     fresh = [item for item in all_items if item["key"] not in seen]
