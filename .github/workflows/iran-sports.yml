@@ -1,0 +1,36 @@
+name: Status Room Iran and sports desk
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 5,9,13,17 * * *"
+permissions:
+  contents: write
+concurrency:
+  group: status-room-iran-and-sports-desk
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Publish
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.1-flash-lite
+        run: python iran_sports.py
+      - name: Persist duplicate-prevention state
+        run: |
+          git config user.name "status-room-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add regional_state.json
+          git diff --cached --quiet || git commit -m "Update Iran and sports news state"
+          git pull --rebase origin main
+          git push
