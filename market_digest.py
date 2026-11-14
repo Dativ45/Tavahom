@@ -57,7 +57,9 @@ def main():
      lines.append(f"• {label}: <b>{toman(price)} تومان</b> | {pts} داده")
     sections.append("🚘 <b>قیمت خودروهای منتخب</b>\n"+"\n".join(lines)+"\n<small>قیمت میانهٔ خودرو کارکرده با بدنه سالم؛ تعداد داده کنار هر مدل آمده است.</small>\nمنبع: <a href=\"https://nemuda.com/data\">نمودا</a>")
   except Exception as e: print("Vehicle data unavailable:",str(e)[:180])
- if not sections: raise SystemExit("No sufficiently fresh price data; nothing posted.")
+ if not sections:
+  print("No sufficiently fresh price data; nothing posted.")
+  return
  msg="🛰️ <b>اتاق وضعیت | تابلوی بازار</b>\n━━━━━━━━━━━━━━━━━━\n"+"\n\n".join(sections)+"\n\n⚠️ <i>اطلاع‌رسانی، نه توصیه خریدوفروش. داده قدیمی یا نامعتبر منتشر نمی‌شود.</i>\n— <b>تراز</b> | تحریریه اقتصاد"
  r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":msg,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35); p=r.json()
  if not r.ok or not p.get("ok"): raise SystemExit(p.get("description","Telegram send failed"))
