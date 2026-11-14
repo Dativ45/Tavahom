@@ -15,6 +15,24 @@ if not BOT_TOKEN or not CHANNEL:
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 STATE_FILE = Path("state.json")
+CONFIG_FILE = Path("editorial_config.json")
+
+def signature_for(item):
+    try:
+        config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        config = {"personas": []}
+    text = (item.get("title", "") + " " + item.get("summary", "")).lower()
+    rules = [
+        ("ورزش", ["فوتبال", "ورزش", "لیگ", "جام", "بازیکن", "تیم ملی", "بسکتبال", "والیبال"]),
+        ("اقتصاد", ["اقتصاد", "تورم", "بورس", "ارز", "دلار", "طلا", "بانک", "نفت", "قیمت", "بازار"]),
+        ("فناوری", ["فناوری", "هوش مصنوعی", "اینترنت", "موبایل", "گوشی", "اپلیکیشن", "ربات", "تراشه", "سایبری"]),
+        ("سیاست", ["انتخابات", "پارلمان", "دولت", "رئیس جمهور", "وزیر", "مجلس", "تحریم", "سیاست"]),
+        ("فرهنگ و جامعه", ["سینما", "فیلم", "موسیقی", "کتاب", "هنر", "فرهنگ", "جامعه"]),
+    ]
+    desk = next((name for name, words in rules if any(word in text for word in words)), "بین‌الملل")
+    alias = next((p["alias"] for p in config.get("personas", []) if p.get("desk") == desk), "سایه‌نویس")
+    return f"\\n\\n— {alias} | اتاق وضعیت"
 
 FEEDS = [
     ("BBC فارسی", "https://feeds.bbci.co.uk/persian/rss.xml"),
@@ -73,7 +91,7 @@ def make_post(item):
             body
             + f"منبع: {item['source']}\n"
             + f"🔗 {item['link']}\n\n"
-            + "اتاق وضعیت | خبر با منبع"
+            + signature
         )
 
     prompt = (
