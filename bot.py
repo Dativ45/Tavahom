@@ -275,7 +275,7 @@ def update_navigation(state):
     ]
     for category, emoji in sections:
         lines.append(f"{emoji} <b>{category}</b>")
-        entries = [item for item in archive if item.get("category") == category][-12:]
+        entries = [item for item in archive if item.get("category") == category][-6:]
         if not entries:
             lines.append("   هنوز مطلبی در این بخش ثبت نشده است.")
         else:
