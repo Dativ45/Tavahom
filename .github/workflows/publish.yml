@@ -1,11 +1,10 @@
-name: Status Room publisher
+name: Status Room live news publisher
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 5 * * *"
-    - cron: "0 11 * * *"
-    - cron: "0 17 * * *"
+    # Best-effort GitHub polling; scheduled starts can be delayed by GitHub.
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: write
@@ -17,6 +16,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,7 +24,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Publish one sourced story
+      - name: Publish one bilingual sourced story
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
