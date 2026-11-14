@@ -1,0 +1,52 @@
+name: Status Room global trend radar
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Daily at 14:00 Tehran (10:30 UTC).
+    - cron: "30 10 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: status-room-trend-radar
+  cancel-in-progress: false
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Validate trend radar syntax
+        run: python -m py_compile trend_radar.py
+      - name: Collect, rank and publish global trends
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          STATUS_ROOM_CHANNEL_URL: ${{ secrets.STATUS_ROOM_CHANNEL_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.1-flash-lite
+        run: python trend_radar.py
+      - name: Persist trend duplicate-prevention state
+        run: |
+          git config user.name "status-room-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add trend_state.json
+          git diff --cached --quiet || git commit -m "Update global trend radar state"
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            if git push; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; retrying after syncing with origin."
+            sleep 2
+          done
+          echo "Could not persist trend state after 3 attempts."
+          exit 1
