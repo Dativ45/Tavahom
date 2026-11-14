@@ -12,7 +12,7 @@ def channel_footer():
   c=p.get("result",{}); link=("https://t.me/"+c["username"]) if c.get("username") else c.get("invite_link","")
   if not link and str(CHAT).startswith("@"): link="https://t.me/"+str(CHAT)[1:]
  if not link: print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link."); return ""
- return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
+ return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
 now=datetime.now(ZoneInfo("Asia/Tehran")); evening=now.hour>=15
 def get(url,params=None):
  r=requests.get(url,params=params,headers={"User-Agent":"StatusRoom/1.0"},timeout=25); r.raise_for_status(); return r.json()
