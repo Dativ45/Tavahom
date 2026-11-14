@@ -17,9 +17,9 @@ def main():
    stamp=x.get("timestamp_tehran","")
    try:
     dt=datetime.fromisoformat(stamp)
-    if (now-dt).total_seconds()>10800: continue
+    if (now-dt).total_seconds()>64800: continue
    except Exception: continue
-   sections.append(f"• {html.escape(x.get('name_fa',sym))}: <b>{toman(x['price'])} تومان</b> ({x.get('change_pct',0):+.2f}٪)")
+   sections.append(f"• {html.escape(x.get('name_fa',sym))}: <b>{toman(x['price'])} تومان</b> ({x.get('change_pct',0):+.2f}٪) | زمان داده: {dt.strftime('%H:%M')} تهران")
    if sym=="USD_IRR_FREE": usd=x["price"]
   if sections: sections.insert(0,"💱 <b>ارز و طلا | بازار آزاد</b>")
  except Exception as e: print("Iran market feed unavailable:",str(e)[:180])
