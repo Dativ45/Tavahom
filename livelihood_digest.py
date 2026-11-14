@@ -17,7 +17,7 @@ def channel_footer():
   c=p.get("result",{}); link=("https://t.me/"+c["username"]) if c.get("username") else c.get("invite_link","")
   if not link and str(CHAT).startswith("@"): link="https://t.me/"+str(CHAT)[1:]
  if not link: print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link."); return ""
- return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
+ return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
 NOW=datetime.now(ZoneInfo("Asia/Tehran"))
 STATE=Path("livelihood_state.json")
 HEADERS={"User-Agent":"Mozilla/5.0 (compatible; StatusRoom/1.0)"}
