@@ -13,12 +13,17 @@ if not BOT_TOKEN or not CHANNEL or not GEMINI_KEY:
     raise SystemExit("Missing required Telegram or Gemini secrets.")
 
 now = datetime.now(ZoneInfo("Asia/Tehran"))
-slot = "صبح" if 4 <= now.hour < 12 else "شب"
+slot = "صبح" if 4 <= now.hour < 12 else ("ظهر" if 12 <= now.hour < 17 else "شب")
 if slot == "صبح":
     brief = (
         "یک پیام صبحگاهی فارسی برای کانال خبری Status Room بنویس؛ گرم، کوتاه، "
         "هوشمند و کمی بانمک. حداکثر ۳ جمله و مناسب خانواده. "
         "از نصیحت کلیشه‌ای، ادعای مناسبت خاص و نقل‌قول ساختگی پرهیز کن."
+    )
+elif slot == "ظهر":
+    brief = (
+        "یک پیام کوتاه ظهرگاهی فارسی برای کانال خبری Status Room بنویس؛ تازه‌نفس، مثبت و کمی بانمک، " 
+        "حداکثر ۳ جمله، مناسب خانواده و بدون نصیحت کلیشه‌ای یا نقل‌قول ساختگی."
     )
 else:
     brief = (
@@ -45,7 +50,7 @@ message = " ".join(p.get("text", "").strip() for p in parts if p.get("text")).st
 if not message:
     raise SystemExit("Gemini returned an empty greeting.")
 
-prefix = "🌅 <b>صبح به‌خیر</b>" if slot == "صبح" else "🌙 <b>شب‌به‌خیر</b>"
+prefix = {"صبح":"🌅 <b>صبح به‌خیر</b>","ظهر":"☀️ <b>ظهر به‌خیر</b>","شب":"🌙 <b>شب‌به‌خیر</b>"}[slot]
 post = (
     "🛰️ <b>اتاق وضعیت | STATUS ROOM</b>\n"
     "━━━━━━━━━━━━━━━━━━\n"
