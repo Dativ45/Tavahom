@@ -177,8 +177,8 @@ def translate_and_classify(item):
 
 def build_post(item, translated, source_count):
     alias = DESK_ALIASES.get(translated["desk"], "اطلس")
-    tags = {"ورزش": "#ورزش", "جنگ و امنیت": "#جنگ_و_امنیت", "مهاجرت": "#مهاجرت", "معیشت": "#معیشت", "اقتصاد": "#اقتصاد", "بین‌الملل": "#بین_الملل"}
-    tag = tags.get(translated["desk"], "#اتاق_وضعیت")
+    archive_category = archive_category_for_desk(translated["desk"])
+    tag = "🗂 <b>آرشیو: " + html.escape(archive_category or translated["desk"]) + "</b>"
     if source_count >= 2:
         status = "🔎 <b>چندمنبعی | در حال بررسی تحریریه</b>"
         status_note = f"بازتاب مشابه در {source_count} دامنه مستقلِ خوراک‌ها پیدا شد؛ این به‌تنهایی تأیید قطعی خبر نیست."
@@ -233,20 +233,80 @@ def publish(message):
     return payload.get("result", {}).get("message_id")
 
 
+def archive_category_for_desk(desk):
+    if desk == "مهاجرت":
+        return "مهاجرت"
+    if desk in ("معیشت", "اقتصاد"):
+        return "معیشت"
+    if desk == "جنگ و امنیت":
+        return "جنگ و امنیت"
+    if desk == "ورزش":
+        return "ورزش"
+    return None
+
+
+def channel_message_link(message_id):
+    channel = str(CHANNEL).strip()
+    if channel.startswith("@"):
+        return f"https://t.me/{channel[1:]}/{message_id}"
+    numeric = channel.removeprefix("-100")
+    if numeric.isdigit():
+        return f"https://t.me/c/{numeric}/{message_id}"
+    raise RuntimeError("TELEGRAM_CHAT_ID must be a public @channel username or a numeric channel ID for archive links.")
+
+
+def update_navigation(state):
+    message_id = state.get("navigation_message_id")
+    if not message_id:
+        raise RuntimeError("Archive navigation message has not been created.")
+    archive = state.get("archive", [])
+    sections = [
+        ("مهاجرت", "🌍"),
+        ("معیشت", "🧺"),
+        ("جنگ و امنیت", "⚠️"),
+        ("ورزش", "🏅"),
+    ]
+    lines = [
+        "📌 <b>آرشیو موضوعی اتاق وضعیت</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        "برای دسترسی مستقیم به مطالب هر بخش، روی عنوان خبر بزنید.",
+        "پیوندها مستقیماً به پیام‌های همین کانال می‌روند؛ جست‌وجوی سراسری تلگرام نیست.",
+        "",
+    ]
+    for category, emoji in sections:
+        lines.append(f"{emoji} <b>{category}</b>")
+        entries = [item for item in archive if item.get("category") == category][-12:]
+        if not entries:
+            lines.append("   هنوز مطلبی در این بخش ثبت نشده است.")
+        else:
+            for item in reversed(entries):
+                title = html.escape(item.get("title", "مشاهده مطلب")[:110])
+                link = channel_message_link(item["message_id"])
+                lines.append(f'   • <a href="{html.escape(link, quote=True)}">{title}</a>')
+        lines.append("")
+    text = "\n".join(lines).strip()
+    response = requests.post(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText",
+        json={
+            "chat_id": CHANNEL,
+            "message_id": message_id,
+            "text": text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        },
+        timeout=35,
+    )
+    payload = response.json()
+    if not response.ok or not payload.get("ok"):
+        description = str(payload.get("description", payload))
+        if "message is not modified" not in description.lower():
+            raise RuntimeError("Telegram could not update archive index: " + description)
+
+
 def ensure_navigation(state):
     if state.get("navigation_message_id"):
         return
-    navigation = (
-        "📌 <b>راهنمای آرشیو اتاق وضعیت</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "🌍 مهاجرت: #مهاجرت\n"
-        "🧺 معیشت: #معیشت و #اقتصاد\n"
-        "⚠️ جنگ و امنیت: #جنگ_و_امنیت\n"
-        "🏅 ورزش: #ورزش\\n\n"
-        "برای دیدن سابقه هر بخش، روی هشتگ همان بخش بزنید.\n"
-        "خبرها همراه تاریخ، منبع و وضعیت اعتبار منتشر می‌شوند."
-    )
-    message_id = publish(navigation)
+    message_id = publish("📌 <b>آرشیو موضوعی اتاق وضعیت</b>\nدر حال آماده‌سازی فهرست پیوندهای داخلی کانال…")
     if not message_id:
         raise RuntimeError("Telegram returned no message ID for archive index.")
     response = requests.post(
@@ -258,8 +318,10 @@ def ensure_navigation(state):
     if not response.ok or not payload.get("ok"):
         raise RuntimeError("Telegram could not pin archive index: " + str(payload.get("description", payload)))
     state["navigation_message_id"] = message_id
+    state.setdefault("archive", [])
     save_state(state)
     print("Pinned archive navigation message: " + str(message_id))
+
 
 def main():
     state = load_state()
@@ -276,13 +338,22 @@ def main():
     for item in fresh[:MAX_POSTS_PER_RUN]:
         translated = translate_and_classify(item)
         source_count = related_source_count(item, all_items)
-        publish(build_post(item, translated, source_count))
+        message_id = publish(build_post(item, translated, source_count))
+        category = archive_category_for_desk(translated["desk"])
+        if category and message_id:
+            state.setdefault("archive", []).append({
+                "category": category,
+                "title": translated["title_fa"],
+                "message_id": message_id,
+            })
+            state["archive"] = state["archive"][-500:]
         seen.add(item["key"])
         published_count += 1
-        print(f"Published: {item['title']} [{item['source']}]")
+        print(f"Published: {item['title']} [{item['source']}] message_id={message_id}")
     state["seen"] = list(seen)
     save_state(state)
-    print(f"Published {published_count} item(s).")
+    update_navigation(state)
+    print(f"Published {published_count} item(s). Archive index updated.")
 
 if __name__ == "__main__":
     main()
