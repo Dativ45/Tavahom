@@ -1,6 +1,10 @@
 name: Status Room market prices
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "market_digest.py"
+      - ".github/workflows/market-digest.yml"
   schedule:
     - cron: "30 6,14 * * *"
 permissions:
@@ -18,11 +22,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install requests==2.32.3
       - name: Publish
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-3.1-flash-lite
         run: python market_digest.py
