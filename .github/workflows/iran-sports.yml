@@ -1,6 +1,11 @@
 name: Status Room Iran and sports desk
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "iran_sports.py"
+      - ".github/workflows/iran-sports.yml"
+      - "requirements.txt"
   schedule:
     - cron: "30 5,9,13,17 * * *"
 permissions:
