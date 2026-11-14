@@ -8,6 +8,16 @@ from bs4 import BeautifulSoup
 BOT=os.getenv("TELEGRAM_BOT_TOKEN"); CHAT=os.getenv("TELEGRAM_CHAT_ID")
 KEY=os.getenv("GEMINI_API_KEY"); MODEL=os.getenv("GEMINI_MODEL","gemini-3.1-flash-lite")
 if not BOT or not CHAT or not KEY: raise SystemExit("Missing required secrets.")
+def channel_footer():
+ configured=os.getenv("STATUS_ROOM_CHANNEL_URL","").strip()
+ if configured.startswith("https://t.me/"): link=configured
+ else:
+  r=requests.get("https://api.telegram.org/bot"+BOT+"/getChat",params={"chat_id":CHAT},timeout=20); p=r.json()
+  if not r.ok or not p.get("ok"): raise RuntimeError("Telegram getChat failed: "+str(p.get("description",p)))
+  c=p.get("result",{}); link=("https://t.me/"+c["username"]) if c.get("username") else c.get("invite_link","")
+  if not link and str(CHAT).startswith("@"): link="https://t.me/"+str(CHAT)[1:]
+ if not link: print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link."); return ""
+ return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
 NOW=datetime.now(ZoneInfo("Asia/Tehran"))
 STATE=Path("livelihood_state.json")
 HEADERS={"User-Agent":"Mozilla/5.0 (compatible; StatusRoom/1.0)"}
@@ -66,7 +76,7 @@ def livelihood_news(state):
  msg=("🧾 <b>معیشت و حقوق کارگران</b>\n━━━━━━━━━━━━━━━━━━\n"
       "🟠 <b>"+html.escape(title)+"</b>\n"+html.escape(fa or "خلاصه قابل اتکا در خوراک منبع موجود نبود.")+
       "\n\n🗞 منبع: "+html.escape(source)+"\n🔗 <a href=\""+html.escape(link,quote=True)+"\">متن کامل خبر</a>"+
-      "\n\n⚠️ <i>خبر و اظهارنظر از هم تفکیک می‌شود؛ تغییر حقوق یا یارانه فقط با سند اجرایی قطعی اعلام خواهد شد.</i>\n— <b>تراز</b> | میز معیشت")
+      "\n\n⚠️ <i>خبر و اظهارنظر از هم تفکیک می‌شود؛ تغییر حقوق یا یارانه فقط با سند اجرایی قطعی اعلام خواهد شد.</i>\n— <b>تراز</b> | میز معیشت"+channel_footer())
  send(msg); state["seen_news"].append(key); print("Published livelihood news:",title)
 def telegram_deals(state):
  # Public previews of the brands' own Telegram channels; only fresh, dated posts are eligible.
@@ -98,7 +108,7 @@ def telegram_deals(state):
  msg=("🛍️ <b>شکار تخفیف | "+html.escape(brand)+"</b>\n━━━━━━━━━━━━━━━━━━\n"
       +html.escape(text[:900])+"\n\n🕒 زمان انتشار منبع: "+dt.strftime("%Y-%m-%d %H:%M")+" تهران"
       +"\n🔗 <a href=\""+html.escape(href,quote=True)+"\">مشاهده پست اصلی فروشگاه</a>"
-      +"\n\n⚠️ <i>قیمت، موجودی، شهرهای مشمول و مهلت را پیش از پرداخت در خود فروشگاه بررسی کنید؛ تخفیف منقضی بازنشر نمی‌شود.</i>\n— <b>تراز</b> | رصد خرید روزانه")
+      +"\n\n⚠️ <i>قیمت، موجودی، شهرهای مشمول و مهلت را پیش از پرداخت در خود فروشگاه بررسی کنید؛ تخفیف منقضی بازنشر نمی‌شود.</i>\n— <b>تراز</b> | رصد خرید روزانه"+channel_footer())
  send(msg); state["seen_deals"].append(key); print("Published official deal:",brand)
 def main():
  state=get_state()
