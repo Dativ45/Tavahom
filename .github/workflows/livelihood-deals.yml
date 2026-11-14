@@ -1,8 +1,5 @@
 name: Status Room livelihood and deals
 on:
-  push:
-    paths:
-      - 'livelihood_digest.py'
   workflow_dispatch:
   schedule:
     # 08:00, 14:00 and 20:00 Asia/Tehran (UTC+3:30).
