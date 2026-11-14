@@ -9,6 +9,24 @@ CHANNEL = os.getenv("TELEGRAM_CHAT_ID")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
+def channel_footer():
+    configured = os.getenv("STATUS_ROOM_CHANNEL_URL", "").strip()
+    if configured.startswith("https://t.me/"):
+        link = configured
+    else:
+        r = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getChat", params={"chat_id": CHANNEL}, timeout=20)
+        p = r.json()
+        if not r.ok or not p.get("ok"):
+            raise RuntimeError("Telegram getChat failed: " + str(p.get("description", p)))
+        chat = p.get("result", {})
+        link = ("https://t.me/" + chat["username"]) if chat.get("username") else chat.get("invite_link", "")
+        if not link and str(CHANNEL).startswith("@"):
+            link = "https://t.me/" + str(CHANNEL)[1:]
+    if not link:
+        print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link.")
+        return ""
+    return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
+
 if not BOT_TOKEN or not CHANNEL or not GEMINI_KEY:
     raise SystemExit("Missing required Telegram or Gemini secrets.")
 
@@ -58,6 +76,7 @@ post = (
     f"{html.escape(message)}\n\n"
     "— <b>سایه‌نویس</b> | تحریریه اتاق وضعیت\n"
     "<i>نام‌ها پنهان می‌مانند؛ حقیقت نه.</i>"
+    + channel_footer()
 )
 tg = requests.post(
     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
