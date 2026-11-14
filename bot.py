@@ -32,7 +32,7 @@ def signature_for(item):
     ]
     desk = next((name for name, words in rules if any(word in text for word in words)), "بین‌الملل")
     alias = next((p["alias"] for p in config.get("personas", []) if p.get("desk") == desk), "سایه‌نویس")
-    return f"\\n\\n— {alias} | اتاق وضعیت"
+    return f"\n\n— {alias} | اتاق وضعیت"
 
 FEEDS = [
     ("BBC فارسی", "https://feeds.bbci.co.uk/persian/rss.xml"),
