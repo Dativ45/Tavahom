@@ -3,6 +3,16 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 BOT=os.getenv("TELEGRAM_BOT_TOKEN"); CHAT=os.getenv("TELEGRAM_CHAT_ID")
 if not BOT or not CHAT: raise SystemExit("Missing Telegram secrets.")
+def channel_footer():
+ configured=os.getenv("STATUS_ROOM_CHANNEL_URL","").strip()
+ if configured.startswith("https://t.me/"): link=configured
+ else:
+  r=requests.get("https://api.telegram.org/bot"+BOT+"/getChat",params={"chat_id":CHAT},timeout=20); p=r.json()
+  if not r.ok or not p.get("ok"): raise RuntimeError("Telegram getChat failed: "+str(p.get("description",p)))
+  c=p.get("result",{}); link=("https://t.me/"+c["username"]) if c.get("username") else c.get("invite_link","")
+  if not link and str(CHAT).startswith("@"): link="https://t.me/"+str(CHAT)[1:]
+ if not link: print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link."); return ""
+ return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
 now=datetime.now(ZoneInfo("Asia/Tehran")); evening=now.hour>=15
 def get(url,params=None):
  r=requests.get(url,params=params,headers={"User-Agent":"StatusRoom/1.0"},timeout=25); r.raise_for_status(); return r.json()
@@ -60,7 +70,7 @@ def main():
  if not sections:
   print("No sufficiently fresh price data; nothing posted.")
   return
- msg="🛰️ <b>اتاق وضعیت | تابلوی بازار</b>\n━━━━━━━━━━━━━━━━━━\n"+"\n\n".join(sections)+"\n\n⚠️ <i>اطلاع‌رسانی، نه توصیه خریدوفروش. داده قدیمی یا نامعتبر منتشر نمی‌شود.</i>\n— <b>تراز</b> | تحریریه اقتصاد"
+ msg="🛰️ <b>اتاق وضعیت | تابلوی بازار</b>\n━━━━━━━━━━━━━━━━━━\n"+"\n\n".join(sections)+"\n\n⚠️ <i>اطلاع‌رسانی، نه توصیه خریدوفروش. داده قدیمی یا نامعتبر منتشر نمی‌شود.</i>\n— <b>تراز</b> | تحریریه اقتصاد"+channel_footer()
  r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":msg,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35); p=r.json()
  if not r.ok or not p.get("ok"): raise SystemExit(p.get("description","Telegram send failed"))
  print("Published market bulletin",p["result"]["message_id"])
