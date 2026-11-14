@@ -3,6 +3,16 @@ from pathlib import Path
 import feedparser,requests
 BOT=os.getenv("TELEGRAM_BOT_TOKEN"); CHAT=os.getenv("TELEGRAM_CHAT_ID"); KEY=os.getenv("GEMINI_API_KEY"); MODEL=os.getenv("GEMINI_MODEL","gemini-3.1-flash-lite")
 if not all([BOT,CHAT,KEY]): raise SystemExit("Missing Telegram/Gemini secrets.")
+def channel_footer():
+ configured=os.getenv("STATUS_ROOM_CHANNEL_URL","").strip()
+ if configured.startswith("https://t.me/"): link=configured
+ else:
+  r=requests.get("https://api.telegram.org/bot"+BOT+"/getChat",params={"chat_id":CHAT},timeout=20); p=r.json()
+  if not r.ok or not p.get("ok"): raise RuntimeError("Telegram getChat failed: "+str(p.get("description",p)))
+  c=p.get("result",{}); link=("https://t.me/"+c["username"]) if c.get("username") else c.get("invite_link","")
+  if not link and str(CHAT).startswith("@"): link="https://t.me/"+str(CHAT)[1:]
+ if not link: print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link."); return ""
+ return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
 FEEDS={"iran":[("ایسنا","https://www.isna.ir/rss"),("مهر","https://www.mehrnews.com/rss"),("باشگاه خبرنگاران","https://www.yjc.ir/fa/rss/allnews"),("تابناک","https://www.tabnak.ir/fa/rss/allnews")],
 "sports":[("سرپوش فوتبال ایران","https://www.sarpoosh.com/rss/iran-pro-league.xml"),("سرپوش فوتبال جهان","https://www.sarpoosh.com/rss/football-world.xml"),("سرپوش ورزش","https://www.sarpoosh.com/rss/sports-news.xml")]}
 STATE=Path("regional_state.json")
@@ -40,7 +50,7 @@ def main():
   msg=("🛰️ <b>اتاق وضعیت | "+heading+"</b>\n━━━━━━━━━━━━━━━━━━\n⚠️ <b>گزارش یک منبع | نیازمند بررسی مستقل</b>\n"
    "این خبر از یک خوراک خبری دریافت شده و تأیید مستقل آن در این سامانه انجام نشده است.\n\n🇮🇷 <b>"+html.escape(title)+"</b>\n"+html.escape(summary[:1100])+
    "\n\n🗞 منبع: "+html.escape(x["source"])+"\n🔗 <a href=\""+html.escape(x["link"],quote=True)+"\">متن کامل منبع</a>\n\n— <b>"+alias+"</b> | تحریریه "+desk+
-   "\n<i>نام‌ها پنهان می‌مانند؛ حقیقت نه.</i>")
+   "\n<i>نام‌ها پنهان می‌مانند؛ حقیقت نه.</i>"+channel_footer())
   send(msg); seen.add(x["key"]); count+=1; print("Published",desk,x["title"])
  STATE.write_text(json.dumps({"seen":list(seen)[-4000:]},ensure_ascii=False,indent=2),encoding="utf-8")
  print("Published",count,"regional posts.")
