@@ -20,6 +20,34 @@ CONFIG_FILE = Path("editorial_config.json")
 MAX_POSTS_PER_RUN = 3  # Channel-local archive index verified
 MAX_SEEN = 5000
 
+def channel_footer():
+    """Return a clickable channel join/follow link when Telegram exposes one."""
+    configured = os.getenv("STATUS_ROOM_CHANNEL_URL", "").strip()
+    if configured.startswith("https://t.me/"):
+        link = configured
+    else:
+        response = requests.get(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/getChat",
+            params={"chat_id": CHANNEL},
+            timeout=20,
+        )
+        payload = response.json()
+        if not response.ok or not payload.get("ok"):
+            raise RuntimeError("Telegram getChat failed while resolving channel link: " + str(payload.get("description", payload)))
+        chat = payload.get("result", {})
+        username = chat.get("username")
+        invite_link = chat.get("invite_link")
+        if username:
+            link = f"https://t.me/{username}"
+        elif invite_link:
+            link = invite_link
+        elif str(CHANNEL).startswith("@"):
+            link = f"https://t.me/{str(CHANNEL)[1:]}"
+        else:
+            print("WARNING: Channel is private and Telegram did not expose an invite link; set STATUS_ROOM_CHANNEL_URL.")
+            return ""
+    return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
+
 if not BOT_TOKEN or not CHANNEL:
     raise SystemExit("Missing GitHub Actions secrets: TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID")
 if not GEMINI_KEY:
@@ -211,6 +239,7 @@ def build_post(item, translated, source_count):
         + f"🔗 <a href=\"{html.escape(item['link'], quote=True)}\">مشاهده منبع اصلی</a>\n\n"
         + f"— <b>{html.escape(alias)}</b> | تحریریه {html.escape(translated['desk'])}\n"
         + "<i>اتاق وضعیت؛ نام‌ها پنهان می‌مانند، حقیقت نه.</i>"
+        + channel_footer()
     )
 
 def publish(message):
