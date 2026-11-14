@@ -12,7 +12,7 @@ def channel_footer():
   c=p.get("result",{}); link=("https://t.me/"+c["username"]) if c.get("username") else c.get("invite_link","")
   if not link and str(CHAT).startswith("@"): link="https://t.me/"+str(CHAT)[1:]
  if not link: print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link."); return ""
- return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
+ return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
 FEEDS={"iran":[("ایسنا","https://www.isna.ir/rss"),("مهر","https://www.mehrnews.com/rss"),("باشگاه خبرنگاران","https://www.yjc.ir/fa/rss/allnews"),("تابناک","https://www.tabnak.ir/fa/rss/allnews")],
 "sports":[("سرپوش فوتبال ایران","https://www.sarpoosh.com/rss/iran-pro-league.xml"),("سرپوش فوتبال جهان","https://www.sarpoosh.com/rss/football-world.xml"),("سرپوش ورزش","https://www.sarpoosh.com/rss/sports-news.xml")]}
 STATE=Path("regional_state.json")
