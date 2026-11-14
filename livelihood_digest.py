@@ -9,9 +9,12 @@ BOT=os.getenv("TELEGRAM_BOT_TOKEN"); CHAT=os.getenv("TELEGRAM_CHAT_ID")
 KEY=os.getenv("GEMINI_API_KEY"); MODEL=os.getenv("GEMINI_MODEL","gemini-3.1-flash-lite")
 if not BOT or not CHAT or not KEY: raise SystemExit("Missing required secrets.")
 NOW=datetime.now(ZoneInfo("Asia/Tehran"))
-STATE=Path("livelihood_state.json")  # relevance filter validation  # scoped live test
+STATE=Path("livelihood_state.json")
 HEADERS={"User-Agent":"Mozilla/5.0 (compatible; StatusRoom/1.0)"}
-KEYWORDS=("حقوق کارگران","حقوق کارمند","افزایش حقوق","افزایش دستمزد","دستمزد","شورای عالی کار","حداقل مزد","حداقل حقوق","پایه حقوق","حق مسکن","بن کارگری","حق اولاد","عیدی کارگران","بازنشستگان","حقوق بازنشستگان","یارانه","کالابرگ","دهک","سبد معیشت","قیمت نان","قیمت روغن","قیمت مرغ","قیمت تخم مرغ","قیمت برنج","قیمت لبنیات","قیمت گوشت","قیمت شیر","قیمت کالاهای اساسی","گرانی کالا","تورم مواد غذایی")
+LABOR_TERMS=("حقوق کارگران","حقوق کارمندان","افزایش حقوق","افزایش دستمزد","شورای عالی کار","حداقل مزد","حداقل حقوق","پایه حقوق","حق مسکن کارگران","بن کارگری","حق اولاد کارگران","عیدی کارگران","حقوق بازنشستگان","مستمری بازنشستگان","متناسب سازی حقوق بازنشستگان","سبد معیشت کارگران","تعیین دستمزد کارگران")
+SUBSIDY_TERMS=("یارانه نقدی","واریز یارانه","افزایش یارانه","حذف یارانه","قطع یارانه","کالابرگ الکترونیکی","کالابرگ","دهک بندی یارانه","دهک‌بندی یارانه")
+PRICE_TERMS=("قیمت نان","قیمت روغن خوراکی","قیمت مرغ","قیمت تخم مرغ","قیمت تخم‌مرغ","قیمت برنج","قیمت لبنیات","قیمت گوشت","قیمت شیر","قیمت کالاهای اساسی","تورم مواد غذایی","سبد کالاهای اساسی")
+BLOCK_TERMS=("پنتاگون","نیروهای نظامی","نیروهای آمریکایی","ارتش آمریکا","ناتو","رزمایش","موشک","پهپاد","حمله نظامی","جنگ","نبرد","تحریم نظامی","اروپا","کاخ سفید","وزارت دفاع","سربازان","استقرار نیرو","خروج نیرو","کاهش نیروهای")
 FEEDS=[
  ("ایسنا","https://www.isna.ir/rss"),
  ("مهر","https://www.mehrnews.com/rss"),
@@ -38,15 +41,17 @@ def translate(title,summary):
  raw="".join(x.get("text","") for x in r.json().get("candidates",[{}])[0].get("content",{}).get("parts",[]))
  try: return clean(json.loads(raw).get("summary",""))
  except Exception: return clean(summary)[:600]
+def is_livelihood_title(title):
+ t=title.replace("ي","ی").replace("ك","ک").lower()
+ if any(term in t for term in BLOCK_TERMS): return False
+ return any(term in t for term in LABOR_TERMS+SUBSIDY_TERMS+PRICE_TERMS)
 def livelihood_news(state):
  items=[]
  for source,url in FEEDS:
   try:
    for e in feedparser.parse(url).entries[:30]:
     title=clean(e.get("title")); summary=clean(e.get("summary",e.get("description",""))); link=e.get("link","")
-    text=title.lower()
-    # Strict title-only filter prevents unrelated stories matching keywords in summaries.
-    if not title or not link.startswith("http") or not any(k in text for k in KEYWORDS): continue
+    if not title or not link.startswith("http") or not is_livelihood_title(title): continue
     published=e.get("published_parsed") or e.get("updated_parsed")
     if published:
      from time import mktime
