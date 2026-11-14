@@ -1,10 +1,6 @@
 name: Status Room market prices
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "market_digest.py"
-      - ".github/workflows/market-digest.yml"
   schedule:
     - cron: "30 6,14 * * *"
 permissions:
