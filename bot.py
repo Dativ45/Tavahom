@@ -17,7 +17,7 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 STATE_FILE = Path("state.json")
 CONFIG_FILE = Path("editorial_config.json")
-MAX_POSTS_PER_RUN = 3
+MAX_POSTS_PER_RUN = 3  # Channel-local archive index enabled
 MAX_SEEN = 5000
 
 if not BOT_TOKEN or not CHANNEL:
