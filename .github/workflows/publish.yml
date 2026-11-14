@@ -1,6 +1,9 @@
 name: Status Room live news publisher
 
 on:
+  push:
+    paths:
+      - 'bot.py'
   workflow_dispatch:
   schedule:
     # Best-effort GitHub polling; scheduled starts can be delayed by GitHub.
@@ -24,6 +27,8 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Validate Python syntax for all publishers
+        run: python -m py_compile bot.py daily_posts.py market_digest.py iran_sports.py livelihood_digest.py
       - name: Publish one bilingual sourced story
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
