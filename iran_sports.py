@@ -6,7 +6,7 @@ if not all([BOT,CHAT,KEY]): raise SystemExit("Missing Telegram/Gemini secrets.")
 FEEDS={"iran":[("ایسنا","https://www.isna.ir/rss"),("مهر","https://www.mehrnews.com/rss"),("باشگاه خبرنگاران","https://www.yjc.ir/fa/rss/allnews"),("تابناک","https://www.tabnak.ir/fa/rss/allnews")],
 "sports":[("سرپوش فوتبال ایران","https://www.sarpoosh.com/rss/iran-pro-league.xml"),("سرپوش فوتبال جهان","https://www.sarpoosh.com/rss/football-world.xml"),("سرپوش ورزش","https://www.sarpoosh.com/rss/sports-news.xml")]}
 STATE=Path("regional_state.json")
-def clean(s): return html.unescape(re.sub(r"\\s+"," ",re.sub(r"<[^>]+>","",s or ""))).strip()
+def clean(s): return html.unescape(re.sub(r"\s+"," ",re.sub(r"<[^>]+>","",s or ""))).strip()
 def send(msg):
  r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":msg,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35); p=r.json()
  if not r.ok or not p.get("ok"): raise RuntimeError(p.get("description","Telegram error"))
