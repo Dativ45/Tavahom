@@ -132,7 +132,7 @@ def translate_and_classify(item):
         "faithful Persian translation of the supplied excerpt, not an invented full-article translation. "
         "summary_fa is a concise 1-2 sentence Persian digest. Choose exactly one desk from: "
         "ورزش، سیاست، اقتصاد، معیشت، مهاجرت، جنگ و امنیت، فناوری، فرهنگ و جامعه، علم و سلامت، محیط زیست، بین‌الملل. "
-        "If the excerpt is empty, say that the source feed provided only a headline.\\n\\n"
+        "If the excerpt is empty, say that the source feed provided only a headline.\\n\n"
         + json.dumps({"source": item["source"], "headline": item["title"], "excerpt": item["summary"]}, ensure_ascii=False)
     )
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
@@ -237,13 +237,13 @@ def ensure_navigation(state):
     if state.get("navigation_message_id"):
         return
     navigation = (
-        "📌 <b>راهنمای آرشیو اتاق وضعیت</b>\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
-        "🌍 مهاجرت: #مهاجرت\\n"
-        "🧺 معیشت: #معیشت و #اقتصاد\\n"
-        "⚠️ جنگ و امنیت: #جنگ_و_امنیت\\n"
-        "🏅 ورزش: #ورزش\\n\\n"
-        "برای دیدن سابقه هر بخش، روی هشتگ همان بخش بزنید.\\n"
+        "📌 <b>راهنمای آرشیو اتاق وضعیت</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "🌍 مهاجرت: #مهاجرت\n"
+        "🧺 معیشت: #معیشت و #اقتصاد\n"
+        "⚠️ جنگ و امنیت: #جنگ_و_امنیت\n"
+        "🏅 ورزش: #ورزش\\n\n"
+        "برای دیدن سابقه هر بخش، روی هشتگ همان بخش بزنید.\n"
         "خبرها همراه تاریخ، منبع و وضعیت اعتبار منتشر می‌شوند."
     )
     message_id = publish(navigation)
