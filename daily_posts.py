@@ -25,7 +25,7 @@ def channel_footer():
     if not link:
         print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link.")
         return ""
-    return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
+    return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
 
 if not BOT_TOKEN or not CHANNEL or not GEMINI_KEY:
     raise SystemExit("Missing required Telegram or Gemini secrets.")
