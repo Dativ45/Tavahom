@@ -2,6 +2,7 @@ import os
 import json
 import hashlib
 import re
+import time
 from pathlib import Path
 
 import feedparser
@@ -47,12 +48,15 @@ def fetch_items():
                 link = entry.get("link", "")
                 summary = clean(entry.get("summary", ""))
                 if title and link.startswith("http"):
+                    published = entry.get("published_parsed") or entry.get("updated_parsed")
+                    published_ts = int(time.mktime(published)) if published else 0
                     key = hashlib.sha256((title + link).encode("utf-8")).hexdigest()
                     items.append({
                         "source": source,
                         "title": title,
                         "link": link,
                         "summary": summary[:1200],
+                        "published_ts": published_ts,
                         "key": key,
                     })
         except Exception as exc:
@@ -82,18 +86,28 @@ def make_post(item):
         f"متن خوراک: {item['summary']}\n"
         f"لینک: {item['link']}"
     )
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENAI_KEY}"},
-        json={
-            "model": OPENAI_MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2,
-        },
-        timeout=45,
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_KEY}"},
+            json={
+                "model": OPENAI_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+            },
+            timeout=45,
+        )
+        response.raise_for_status()
+        summary = response.json()["choices"][0]["message"]["content"].strip()
+    except Exception as exc:
+        print(f"AI summary unavailable; using feed text: {exc}")
+        summary = item["summary"][:650] or item["title"]
+
+    # Always append attribution outside the model output.
+    return (
+        summary[:2800]
+        + f"\\n\\nمنبع: {item['source']}\\n🔗 {item['link']}\\n\\nاتاق وضعیت"
     )
-    response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"].strip()
 
 def publish(message):
     response = requests.post(
@@ -119,7 +133,8 @@ def main():
         print("No new stories.")
         return
 
-    # Publish the newest available item; source and original link are retained.
+    # Choose the newest dated item across all feeds, not simply the first feed.
+    fresh.sort(key=lambda item: item.get("published_ts", 0), reverse=True)
     item = fresh[0]
     publish(make_post(item))
     seen.add(item["key"])
