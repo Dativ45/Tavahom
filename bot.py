@@ -82,6 +82,7 @@ def fetch_items():
     return items
 
 def make_post(item):
+    signature = signature_for(item)
     if not OPENAI_KEY:
         excerpt = item["summary"][:650].strip()
         body = f"📰 {item['title']}\n\n"
@@ -90,7 +91,7 @@ def make_post(item):
         return (
             body
             + f"منبع: {item['source']}\n"
-            + f"🔗 {item['link']}\n\n"
+            + f"🔗 {item['link']}"
             + signature
         )
 
@@ -98,7 +99,8 @@ def make_post(item):
         "برای کانال فارسی تلگرام «اتاق وضعیت» یک خلاصه کوتاه و بی‌طرف بنویس. "
         "فقط از داده‌های ارائه‌شده استفاده کن و هیچ عدد یا واقعیتی نساز. "
         "اگر اطلاعات کافی نیست، صرفاً تیتر را روشن‌تر بازنویسی کن. "
-        "حداکثر ۷۰ کلمه. در پایان نام منبع و لینک را بیاور.\n\n"
+        "حداکثر ۷۰ کلمه. لحن حرفه‌ای و روشن باشد. "
+        "نام مستعار فقط امضای تحریریه است و منبع خبر محسوب نمی‌شود.\n\n"
         f"منبع: {item['source']}\n"
         f"عنوان: {item['title']}\n"
         f"متن خوراک: {item['summary']}\n"
@@ -121,10 +123,10 @@ def make_post(item):
         print(f"AI summary unavailable; using feed text: {exc}")
         summary = item["summary"][:650] or item["title"]
 
-    # Always append attribution outside the model output.
     return (
-        summary[:2800]
-        + f"\\n\\nمنبع: {item['source']}\\n🔗 {item['link']}\\n\\nاتاق وضعیت"
+        summary[:2600]
+        + f"\n\nمنبع: {item['source']}\n🔗 {item['link']}"
+        + signature
     )
 
 def publish(message):
