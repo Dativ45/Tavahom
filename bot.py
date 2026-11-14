@@ -206,7 +206,7 @@ def build_post(item, translated, source_count):
         + html.escape(translated["summary_fa"][:450]) + "\n\n"
         + "━━━━━━━━━━━━━━━━━━\n"
         + f"🗞 منبع: {html.escape(item['source'])}\n"
-        + tag + "\\n"
+        + tag + "\n"
         + f"🕒 زمان منبع: {html.escape(published)}\n"
         + f"🔗 <a href=\"{html.escape(item['link'], quote=True)}\">مشاهده منبع اصلی</a>\n\n"
         + f"— <b>{html.escape(alias)}</b> | تحریریه {html.escape(translated['desk'])}\n"
