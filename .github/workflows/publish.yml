@@ -1,9 +1,6 @@
 name: Status Room live news publisher
 
 on:
-  push:
-    paths:
-      - 'bot.py'
   workflow_dispatch:
   schedule:
     # Best-effort GitHub polling; scheduled starts can be delayed by GitHub.
