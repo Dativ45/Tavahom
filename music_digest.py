@@ -138,7 +138,10 @@ def publish_audio(track, slot):
     content_type = audio_response.headers.get("Content-Type", "").lower()
     if "audio" not in content_type and "octet-stream" not in content_type:
         raise RuntimeError("Jamendo download did not return an audio content type.")
-    files = {"audio": (f"{track['id']}.mp3", audio_response.raw, "audio/mpeg")}
+    audio_bytes = audio_response.content
+    if not audio_bytes or len(audio_bytes) > 45 * 1024 * 1024:
+        raise RuntimeError("Audio file is empty or exceeds the safe 45 MB Telegram upload limit.")
+    files = {"audio": (f"{track['id']}.mp3", audio_bytes, "audio/mpeg")}
     data = {"chat_id": CHANNEL, "caption": caption, "parse_mode": "HTML", "title": str(track["name"])[:64],
             "performer": str(track["artist_name"])[:64]}
     response = requests.post(
