@@ -1,19 +1,19 @@
 name: Status Room morning and night posts
+
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "daily_posts.py"
-      - ".github/workflows/daily-posts.yml"
   schedule:
     # 06:30 and 20:30 Iran time (UTC+3:30).
     - cron: "0 3 * * *"
     - cron: "0 17 * * *"
+
 permissions:
   contents: read
+
 concurrency:
   group: status-room-daily-posts
   cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
