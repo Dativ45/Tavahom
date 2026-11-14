@@ -20,7 +20,7 @@ FEEDS=[
  ("تابناک","https://www.tabnak.ir/fa/rss/allnews"),
  ("باشگاه خبرنگاران","https://www.yjc.ir/fa/rss/allnews"),
 ]
-def clean(s): return html.unescape(re.sub(r"\\s+"," ",BeautifulSoup(s or "","html.parser").get_text(" ",strip=True))).strip()
+def clean(s): return html.unescape(re.sub(r"\s+"," ",BeautifulSoup(s or "","html.parser").get_text(" ",strip=True))).strip()
 def send(text):
  r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":text,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35)
  p=r.json()
@@ -30,7 +30,8 @@ def get_state():
  try: return json.loads(STATE.read_text(encoding="utf-8"))
  except Exception: return {"seen_news":[],"seen_deals":[]}
 def translate(title,summary):
- prompt="این خبر اقتصادی/معیشتی را دقیق و بی‌طرف به فارسی روان ایران خلاصه کن. هیچ رقم، تاریخ، مصوبه یا قطعیتی را اضافه نکن. اگر خبر صرفاً نقل قول یا پیشنهاد است، همان را روشن بنویس. حداکثر ۳ جمله. JSON با کلید summary برگردان.\\n"+json.dumps({"title":title,"summary":summary},ensure_ascii=False)
+ prompt="این خبر اقتصادی/معیشتی را دقیق و بی‌طرف به فارسی روان ایران خلاصه کن. هیچ رقم، تاریخ، مصوبه یا قطعیتی را اضافه نکن. اگر خبر صرفاً نقل قول یا پیشنهاد است، همان را روشن بنویس. حداکثر ۳ جمله. JSON با کلید summary برگردان.\
+"+json.dumps({"title":title,"summary":summary},ensure_ascii=False)
  u=f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
  r=requests.post(u,headers={"x-goog-api-key":KEY,"Content-Type":"application/json"},json={"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.1,"responseMimeType":"application/json","maxOutputTokens":300}},timeout=45)
  r.raise_for_status()
