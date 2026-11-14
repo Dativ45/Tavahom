@@ -13,17 +13,17 @@ import requests
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHANNEL = os.getenv("TELEGRAM_CHAT_ID")
-OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 STATE_FILE = Path("state.json")
 CONFIG_FILE = Path("editorial_config.json")
-MAX_POSTS_PER_RUN = 1
+MAX_POSTS_PER_RUN = 3
 MAX_SEEN = 5000
 
 if not BOT_TOKEN or not CHANNEL:
     raise SystemExit("Missing GitHub Actions secrets: TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID")
-if not OPENAI_KEY:
-    raise SystemExit("Missing OPENAI_API_KEY: bilingual publishing requires translation.")
+if not GEMINI_KEY:
+    raise SystemExit("Missing GEMINI_API_KEY: bilingual publishing requires translation.")
 
 # A broad source mix: international newsrooms and primary institutional feeds.
 FEEDS = [
@@ -129,22 +129,35 @@ def translate_and_classify(item):
         "faithful Persian translation of the supplied excerpt, not an invented full-article translation. "
         "summary_fa is a concise 1-2 sentence Persian digest. Choose exactly one desk from: "
         "ورزش، سیاست، اقتصاد، فناوری، فرهنگ و جامعه، علم و سلامت، محیط زیست، بین‌الملل. "
-        "If the excerpt is empty, say that the source feed provided only a headline.\n\n"
+        "If the excerpt is empty, say that the source feed provided only a headline.\\n\\n"
         + json.dumps({"source": item["source"], "headline": item["title"], "excerpt": item["summary"]}, ensure_ascii=False)
     )
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
     response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENAI_KEY}"},
+        url,
+        headers={"x-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
         json={
-            "model": OPENAI_MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"},
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "responseMimeType": "application/json",
+                "maxOutputTokens": 1400,
+            },
         },
         timeout=60,
     )
-    response.raise_for_status()
-    content = response.json()["choices"][0]["message"]["content"]
+    if not response.ok:
+        # Do not print the request URL or API key.
+        try:
+            detail = response.json().get("error", {}).get("message", "Gemini API request failed")
+        except (ValueError, AttributeError):
+            detail = "Gemini API request failed"
+        raise RuntimeError(f"Gemini API error ({response.status_code}): {str(detail)[:500]}")
+    payload = response.json()
+    parts = payload.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+    content = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+    if not content.strip():
+        raise RuntimeError("Gemini returned an empty translation response.")
     data = json.loads(content)
     allowed = set(DESK_ALIASES)
     if data.get("desk") not in allowed:
