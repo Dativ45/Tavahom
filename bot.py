@@ -1,4 +1,5 @@
 import os
+# Channel follow-link footer enabled across all publisher scripts.
 import json
 import hashlib
 import html
