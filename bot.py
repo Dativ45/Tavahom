@@ -52,7 +52,7 @@ DESK_ALIASES = {
 }
 
 def clean(value):
-    return re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", "", value or "")).strip()
+    return html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", value or ""))).strip()
 
 def load_state():
     try:
