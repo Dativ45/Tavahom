@@ -32,7 +32,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           STATUS_ROOM_CHANNEL_URL: ${{ secrets.STATUS_ROOM_CHANNEL_URL }}
-          JAMENDO_CLIENT_ID: ${{ secrets.JAMENDO_CLIENT_ID }}
         run: python music_digest.py
       - name: Persist music duplicate-prevention state
         run: |
