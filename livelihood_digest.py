@@ -9,7 +9,7 @@ BOT=os.getenv("TELEGRAM_BOT_TOKEN"); CHAT=os.getenv("TELEGRAM_CHAT_ID")
 KEY=os.getenv("GEMINI_API_KEY"); MODEL=os.getenv("GEMINI_MODEL","gemini-3.1-flash-lite")
 if not BOT or not CHAT or not KEY: raise SystemExit("Missing required secrets.")
 NOW=datetime.now(ZoneInfo("Asia/Tehran"))
-STATE=Path("livelihood_state.json")  # scoped live test
+STATE=Path("livelihood_state.json")  # relevance filter validation  # scoped live test
 HEADERS={"User-Agent":"Mozilla/5.0 (compatible; StatusRoom/1.0)"}
 KEYWORDS=("حقوق کارگران","حقوق کارمند","افزایش حقوق","افزایش دستمزد","دستمزد","شورای عالی کار","حداقل مزد","حداقل حقوق","پایه حقوق","حق مسکن","بن کارگری","حق اولاد","عیدی کارگران","بازنشستگان","حقوق بازنشستگان","یارانه","کالابرگ","دهک","سبد معیشت","قیمت نان","قیمت روغن","قیمت مرغ","قیمت تخم مرغ","قیمت برنج","قیمت لبنیات","قیمت گوشت","قیمت شیر","قیمت کالاهای اساسی","گرانی کالا","تورم مواد غذایی")
 FEEDS=[
