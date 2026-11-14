@@ -11,7 +11,7 @@ if not BOT or not CHAT or not KEY: raise SystemExit("Missing required secrets.")
 NOW=datetime.now(ZoneInfo("Asia/Tehran"))
 STATE=Path("livelihood_state.json")  # scoped live test
 HEADERS={"User-Agent":"Mozilla/5.0 (compatible; StatusRoom/1.0)"}
-KEYWORDS=("حقوق کارگران","افزایش حقوق","دستمزد","شورای عالی کار","حداقل مزد","حق مسکن","بن کارگری","یارانه","کالابرگ","دهک","سبد معیشت","قیمت نان","قیمت روغن","قیمت مرغ","قیمت تخم مرغ","قیمت برنج","گرانی","تورم")
+KEYWORDS=("حقوق کارگران","حقوق کارمند","افزایش حقوق","افزایش دستمزد","دستمزد","شورای عالی کار","حداقل مزد","حداقل حقوق","پایه حقوق","حق مسکن","بن کارگری","حق اولاد","عیدی کارگران","بازنشستگان","حقوق بازنشستگان","یارانه","کالابرگ","دهک","سبد معیشت","قیمت نان","قیمت روغن","قیمت مرغ","قیمت تخم مرغ","قیمت برنج","قیمت لبنیات","قیمت گوشت","قیمت شیر","قیمت کالاهای اساسی","گرانی کالا","تورم مواد غذایی")
 FEEDS=[
  ("ایسنا","https://www.isna.ir/rss"),
  ("مهر","https://www.mehrnews.com/rss"),
@@ -44,7 +44,8 @@ def livelihood_news(state):
   try:
    for e in feedparser.parse(url).entries[:30]:
     title=clean(e.get("title")); summary=clean(e.get("summary",e.get("description",""))); link=e.get("link","")
-    text=(title+" "+summary).lower()
+    text=title.lower()
+    # Strict title-only filter prevents unrelated stories matching keywords in summaries.
     if not title or not link.startswith("http") or not any(k in text for k in KEYWORDS): continue
     published=e.get("published_parsed") or e.get("updated_parsed")
     if published:
