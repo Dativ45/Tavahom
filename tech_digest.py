@@ -157,6 +157,9 @@ def footer():
 
 def post(item, title_fa, summary_fa, category):
     timestamp = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["timestamp"])) if item["timestamp"] else "زمان انتشار در خوراک مشخص نیست"
+    title_fa = title_fa[:140]
+    summary_fa = summary_fa[:250]
+    original_title = item["title"][:180]
     caption = (
         "📱 <b>اتاق وضعیت | فناوری جهان</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
@@ -164,15 +167,13 @@ def post(item, title_fa, summary_fa, category):
         f"🇮🇷 <b>{html.escape(title_fa)}</b>\n"
         f"{html.escape(summary_fa)}\n\n"
         "🌐 <b>Original (English)</b>\n"
-        f"{html.escape(item['title'][:500])}\n\n"
+        f"{html.escape(original_title)}\n\n"
         "━━━━━━━━━━━━━━━━━━\n"
         f"🗞 منبع: {html.escape(item['source'])}\n"
         f"🕒 زمان خوراک: {html.escape(timestamp)}\n"
         f"🔗 <a href=\"{html.escape(item['link'], quote=True)}\">گزارش کامل و مشخصات اصلی</a>"
         + footer()
     )
-    # Telegram captions are limited to 1024 characters after entity parsing.
-    caption = caption[:1000]
     if item.get("image"):
         try:
             response = requests.post(
