@@ -20,13 +20,6 @@ if not all([BOT,CHAT,KEY]):
 
 STATE=Path("regional_state.json")
 FEEDS={
- "iran":[
-  ("ایسنا","https://www.isna.ir/rss"),
-  ("مهر","https://www.mehrnews.com/rss"),
-  ("باشگاه خبرنگاران","https://www.yjc.ir/fa/rss/allnews"),
-  ("تابناک","https://www.tabnak.ir/fa/rss/allnews"),
-  ("خبرآنلاین","https://www.khabaronline.ir/rss"),
- ],
  "sports":[
   ("سرپوش فوتبال ایران","https://www.sarpoosh.com/rss/iran-pro-league.xml"),
   ("سرپوش فوتبال جهان","https://www.sarpoosh.com/rss/football-world.xml"),
@@ -35,9 +28,7 @@ FEEDS={
   ("BBC Sport Football","https://feeds.bbci.co.uk/sport/football/rss.xml"),
   ("Sky Sports","https://www.skysports.com/rss/12040"),
   ("The Guardian Sport","https://www.theguardian.com/uk/sport/rss"),
- ],
-}
-IRAN_TERMS=re.compile(r"ایران|ایرانی|تهران|مشهد|اصفهان|شیراز|تبریز|اهواز|خوزستان|فدراسیون ایران|iran|iranian",re.I)
+ ]}
 SPORT_TERMS=re.compile(
  r"فوتبال|تیم ملی|لیگ برتر|پرسپولیس|استقلال|تراکتور|سپاهان|کشتی|والیبال|"
  r"بسکتبال|هندبال|وزنه.?برداری|تنیس|فوتسال|ورزش زنان|Iran|Iranian|football|"
@@ -166,7 +157,6 @@ def main():
     seen=set(state.get("seen",[]))
     count=0
     for kind,desk,alias,heading in [
-        ("iran","ایران","آینه","اخبار ایران"),
         ("sports","ورزش","ضربان","نبض ورزش"),
     ]:
         items=[item for item in collect(kind) if item["key"] not in seen]
