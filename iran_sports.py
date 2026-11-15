@@ -37,6 +37,7 @@ FEEDS={
   ("The Guardian Sport","https://www.theguardian.com/uk/sport/rss"),
  ],
 }
+IRAN_TERMS=re.compile(r"ایران|ایرانی|تهران|مشهد|اصفهان|شیراز|تبریز|اهواز|خوزستان|فدراسیون ایران|iran|iranian",re.I)
 SPORT_TERMS=re.compile(
  r"فوتبال|تیم ملی|لیگ برتر|پرسپولیس|استقلال|تراکتور|سپاهان|کشتی|والیبال|"
  r"بسکتبال|هندبال|وزنه.?برداری|تنیس|فوتسال|ورزش زنان|Iran|Iranian|football|"
@@ -111,6 +112,8 @@ def collect(kind):
                 link=entry.get("link","")
                 excerpt=clean(entry.get("summary",entry.get("description","")))[:1400]
                 if not title or not link.startswith(("http://","https://")):
+                    continue
+                if kind=="iran" and not IRAN_TERMS.search(title+" "+excerpt):
                     continue
                 if kind=="sports" and source not in ("BBC Sport","BBC Sport Football","Sky Sports","The Guardian Sport") and not SPORT_TERMS.search(title+" "+excerpt):
                     continue
