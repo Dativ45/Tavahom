@@ -43,8 +43,16 @@ def fetch_feed(url: str, *, timeout=DEFAULT_TIMEOUT, session=None):
     for entry in parsed.entries:
         title, link = clean_html(entry.get("title", "")), canonical_url(entry.get("link", ""))
         if title and link:
+            image = None
+            for candidate in (entry.get("media_content", []) or []) + (entry.get("media_thumbnail", []) or []) + (entry.get("enclosures", []) or []):
+                if isinstance(candidate, dict):
+                    raw = candidate.get("url") or candidate.get("href")
+                    if raw and urlsplit(raw).scheme in {"http", "https"} and urlsplit(raw).netloc:
+                        image = raw
+                        break
             out.append({"title":title[:500], "link":link,
-                        "summary":clean_html(entry.get("summary", entry.get("description", "")))[:4000]})
+                        "summary":clean_html(entry.get("summary", entry.get("description", "")))[:4000],
+                        "image":image})
     return out
 
 def _delay(attempt, retry_after=None):
@@ -85,6 +93,27 @@ def gemini_json(prompt: str, *, api_key=None, model=None, timeout=DEFAULT_TIMEOU
     if not isinstance(result, dict): raise DeskError("Gemini JSON must be an object")
     return result
 
+def telegram_send_photo(photo_url: str, caption: str, *, bot_token=None, chat_id=None, timeout=DEFAULT_TIMEOUT, session=None):
+    token, target = bot_token or os.getenv("TELEGRAM_BOT_TOKEN"), chat_id or os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not target: raise DeskError("Missing Telegram credentials")
+    if not photo_url.startswith(("https://", "http://")): raise DeskError("Invalid photo URL")
+    if len(caption) > 1024: raise DeskError("Telegram photo caption exceeds 1024 characters")
+    endpoint = f"https://api.telegram.org/bot{token}/sendPhoto"
+    try:
+        response = (session or requests).post(endpoint, json={"chat_id":target,"photo":photo_url,
+                    "caption":caption,"parse_mode":"HTML"}, timeout=timeout)
+    except requests.RequestException as exc:
+        raise DeliveryUncertain("Telegram photo send outcome unknown; reconcile before retrying") from exc
+    try: payload = response.json()
+    except ValueError as exc: raise DeliveryUncertain("Telegram photo response was non-JSON") from exc
+    if response.status_code >= 500: raise DeliveryUncertain("Telegram photo server error; delivery may be unknown")
+    if not response.ok or not payload.get("ok"):
+        raise DeskError("Telegram photo rejected: " + safe_error(payload.get("description","API error")))
+    result=payload.get("result")
+    if not isinstance(result,dict) or "message_id" not in result:
+        raise DeliveryUncertain("Telegram photo response lacked message_id")
+    return result
+
 def telegram_send(text: str, *, bot_token=None, chat_id=None, timeout=DEFAULT_TIMEOUT, session=None):
     token, target = bot_token or os.getenv("TELEGRAM_BOT_TOKEN"), chat_id or os.getenv("TELEGRAM_CHAT_ID")
     if not token or not target: raise DeskError("Missing Telegram credentials")
@@ -120,13 +149,23 @@ class DeskState:
             except (OSError,json.JSONDecodeError,ValueError) as exc:
                 raise DeskError(f"Invalid state preserved for inspection: {self.path}") from exc
     def status(self,key): return self.data["items"].get(key,{}).get("status","new")
+    def import_legacy_seen(self, keys):
+        """Import old SHA256(title+link) keys as sent markers during desk migration."""
+        for key in keys:
+            if isinstance(key, str) and key:
+                self.data["items"].setdefault("legacy:" + key, {"status":"sent","title":"legacy migration","updated_at":int(time.time())})
+        self.save()
     def begin(self,key,title=""):
-        if self.status(key)!="new": raise DeskError("Item is not new")
+        if self.status(key) not in {"new", "failed"}: raise DeskError("Item is not new or retryable")
         self.data["items"][key]={"status":"pending","title":title[:200],"updated_at":int(time.time())}
         self.save()
     def mark_sent(self,key,message_id):
         if self.status(key)!="pending": raise DeskError("Only pending items can be marked sent")
         self.data["items"][key].update(status="sent",message_id=int(message_id),updated_at=int(time.time()))
+        self.save()
+    def mark_failed(self,key,reason=""):
+        if self.status(key)!="pending": raise DeskError("Only pending items can be marked failed")
+        self.data["items"][key].update(status="failed",reason=safe_error(reason),updated_at=int(time.time()))
         self.save()
     def mark_unknown(self,key,reason=""):
         if self.status(key)!="pending": raise DeskError("Only pending items can be marked unknown")
