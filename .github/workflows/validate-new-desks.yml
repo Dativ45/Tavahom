@@ -6,8 +6,10 @@ on:
       - "daily_briefing.py"
       - ".github/workflows/daily-briefing.yml"
       - "tech_digest.py"
+      - "science_digest.py"
       - "sports_results.py"
       - ".github/workflows/tech-digest.yml"
+      - ".github/workflows/science-digest.yml"
       - ".github/workflows/sports-results.yml"
       - ".github/workflows/validate-new-desks.yml"
       - "requirements.txt"
@@ -32,4 +34,4 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Compile new publishers
-        run: python -m py_compile daily_briefing.py tech_digest.py sports_results.py
+        run: python -m py_compile daily_briefing.py tech_digest.py science_digest.py sports_results.py
