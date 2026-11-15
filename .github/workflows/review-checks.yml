@@ -1,0 +1,24 @@
+name: Status Room review checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile all publisher modules
+        run: python -m py_compile common.py bot.py daily_posts.py market_digest.py iran_sports.py livelihood_digest.py trend_radar.py music_digest.py
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v

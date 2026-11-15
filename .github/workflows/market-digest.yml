@@ -23,4 +23,5 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          STATUS_ROOM_CHANNEL_URL: ${{ secrets.STATUS_ROOM_CHANNEL_URL }}
         run: python market_digest.py

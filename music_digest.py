@@ -3,6 +3,7 @@ import re
 import json
 import html
 import requests
+from common import post_with_retry
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -112,9 +113,11 @@ def get_licensed_track(items, posted):
         candidates.sort(key=lambda pair: (pair[0] < 150_000, pair[0]))
         size, filename = candidates[0]
         title = info.get("title") or item.get("title") or identifier
-        creator = info.get("creator") or item.get("creator") or "نامشخص"
+        creator = info.get("creator") or item.get("creator") or ""
         if isinstance(creator, list):
             creator = ", ".join(str(x) for x in creator[:3])
+        if not str(creator).strip():
+            continue  # Skip items without a reliable creator credit.
         return {
             "id": identifier, "title": str(title), "creator": str(creator),
             "license_url": str(license_url),
@@ -149,7 +152,7 @@ def publish_audio(track, slot):
     files = {"audio": (track["filename"], audio_bytes, "audio/mpeg")}
     data = {"chat_id": CHANNEL, "caption": caption, "parse_mode": "HTML",
             "title": track["title"][:64], "performer": track["creator"][:64]}
-    response = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendAudio",
+    response = post_with_retry(f"https://api.telegram.org/bot{BOT_TOKEN}/sendAudio",
                              data=data, files=files, timeout=120)
     try:
         payload = response.json()

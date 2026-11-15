@@ -11,6 +11,7 @@ from urllib.parse import quote
 
 import feedparser
 import requests
+from common import post_with_retry
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHANNEL = os.getenv("TELEGRAM_CHAT_ID")
@@ -169,7 +170,7 @@ def select_and_write(candidates):
         + json.dumps(compact, ensure_ascii=False)
     )
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-    response = requests.post(
+    response = post_with_retry(
         url,
         headers={"x-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
         json={
@@ -250,7 +251,7 @@ def build_post(item, source, coverage):
 
 
 def publish(message):
-    response = requests.post(
+    response = post_with_retry(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         json={
             "chat_id": CHANNEL, "text": message, "parse_mode": "HTML",
@@ -281,7 +282,8 @@ def main():
         candidates.append(item)
     today = datetime.now(TEHRAN).date().isoformat()
     already = set(state.get("posted", []))
-    fresh = [x for x in candidates if f"{today}:{x['fingerprint']}" not in already]
+    already_fingerprints = {str(value).split(":")[-1] for value in already}
+    fresh = [x for x in candidates if x["fingerprint"] not in already_fingerprints]
     if not fresh:
         print("All current trend candidates were already processed today.")
         return
@@ -302,9 +304,12 @@ def main():
             continue
         message_id = publish(build_post(item, source, source["gdelt"]))
         already.add(f"{today}:{source['fingerprint']}")
+        state["posted"] = list(already)[-1200:]
+        state["last_run_tehran"] = datetime.now(TEHRAN).isoformat()
+        save_state(state)
         published += 1
         print(f"Published trend [{item['category']}] {source['topic']} message_id={message_id}")
-    state["posted"] = list(already)
+    state["posted"] = list(already)[-1200:]
     state["last_run_tehran"] = datetime.now(TEHRAN).isoformat()
     save_state(state)
     print(f"Published {published} trend post(s).")

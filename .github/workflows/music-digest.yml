@@ -40,8 +40,8 @@ jobs:
           git add music_state.json
           git diff --cached --quiet || git commit -m "Update licensed music state"
           for attempt in 1 2 3; do
-            git pull --rebase origin main
-            if git push; then
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            if git push origin "${GITHUB_REF_NAME}"; then
               exit 0
             fi
             echo "Push attempt $attempt failed; retrying after syncing with origin."
