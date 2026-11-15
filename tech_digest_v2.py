@@ -114,13 +114,14 @@ def format_photo_caption(item, title_fa, summary_fa, category):
     title = html.escape(title_fa[:180])
     summary = html.escape(summary_fa[:220])
     link = html.escape(item["link"], quote=True)
-    return (
+    caption = (
         "📱 <b>اتاق وضعیت | فناوری جهان</b>\n"
         f"🏷 <b>{html.escape(category)}</b>\n"
         f"<b>{title}</b>\n{summary}\n"
         f"ℹ️ {html.escape(format_rss_notice(item['summary']))}\n"
         f"🗞 {source} | <a href=\"{link}\">گزارش اصلی</a>"
-    )[:1000]
+    )
+    return caption
 
 
 def main():
