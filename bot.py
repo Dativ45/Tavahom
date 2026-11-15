@@ -145,7 +145,7 @@ def fetch_items():
                             media_url = candidate
                             break
                 if not media_url:
-                    match = re.search(r'<img[^>]+src=["\\'](https://[^"\\']+)["\\']', entry.get("summary", ""), re.I)
+                    match = re.search(r"<img[^>]+src=['\"](https://[^'\"]+)['\"]", entry.get("summary", ""), re.I)
                     if match:
                         media_url = html.unescape(match.group(1))
                 key = hashlib.sha256((title + link).encode("utf-8")).hexdigest()
