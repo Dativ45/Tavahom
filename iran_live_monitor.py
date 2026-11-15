@@ -182,16 +182,24 @@ def translate(item):
 
 def build_message(item, title_fa, summary_fa):
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"]))
-    if item.get("citizen_report"):\n        confidence = "گزارش مردمی بازنشرشده؛ تأیید مستقل نشده و صرفاً برای اطلاع‌رسانی است."\n        desk_label = "صدای مردم | " + item["category"]\n    else:\n        confidence = "گزارش اولیه؛ تأیید مستقل در این سامانه احراز نشده است."\n        desk_label = item["category"]\n    return (
-        "🇮🇷 <b>اتاق وضعیت | خبر ایران</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        "🗂 <b>" + html.escape(item["category"]) + "</b>\n"
-        "⚠️ " + confidence + "\n\n"
-        "<b>" + html.escape(title_fa) + "</b>\n"
-        + html.escape(summary_fa) + "\n\n"
-        "🗞 منبع: " + html.escape(item["source"]) + "\n"
-        "🕒 انتشار منبع: " + html.escape(published) + "\n"
-        "🔗 <a href=\"" + html.escape(item["link"], quote=True) + "\">متن و جزئیات منبع</a>\n\n"
+    if item.get("citizen_report"):
+        confidence = "گزارش مردمی بازنشرشده؛ تأیید مستقل نشده و صرفاً برای اطلاع‌رسانی است."
+        desk_label = "صدای مردم | " + item["category"]
+    else:
+        confidence = "گزارش اولیه؛ تأیید مستقل در این سامانه احراز نشده است."
+        desk_label = item["category"]
+    return (
+        "🇮🇷 <b>اتاق وضعیت | خبر ایران</b>\\n"
+        "━━━━━━━━━━━━━━━━━━\\n"
+        "🗂 <b>" + html.escape(desk_label) + "</b>\\n"
+        "⚠️ " + confidence + "\\n"
+        + ("⛔ اطلاعات هویتی افراد عادی بازنشر نمی‌شود.\\n" if item.get("citizen_report") else "")
+        + "\\n"
+        "<b>" + html.escape(title_fa) + "</b>\\n"
+        + html.escape(summary_fa) + "\\n\\n"
+        "🗞 منبع: " + html.escape(item["source"]) + "\\n"
+        "🕒 انتشار منبع: " + html.escape(published) + "\\n"
+        "🔗 <a href=\\\"" + html.escape(item["link"], quote=True) + "\\\">متن و جزئیات منبع</a>\\n\\n"
         "<i>زمان انتشار منبع با زمان دریافت خبر یکسان نیست.</i>"
     )
 
