@@ -41,7 +41,8 @@ def fetch_feed(url: str, *, timeout=DEFAULT_TIMEOUT, session=None):
         raise DeskError("Feed parse failed: " + safe_error(getattr(parsed, "bozo_exception", "invalid feed")))
     out = []
     for entry in parsed.entries:
-        title, link = clean_html(entry.get("title", "")), canonical_url(entry.get("link", ""))
+        title, raw_link = clean_html(entry.get("title", "")), (entry.get("link", "") or "").strip()
+        link = canonical_url(raw_link)
         if title and link:
             raw_summary = entry.get("summary", entry.get("description", "")) or ""
             image = None
@@ -53,7 +54,7 @@ def fetch_feed(url: str, *, timeout=DEFAULT_TIMEOUT, session=None):
                     if raw and urlsplit(raw).scheme in {"http", "https"} and urlsplit(raw).netloc:
                         image = raw
                         break
-            out.append({"title":title[:500], "link":link,
+            out.append({"title":title[:500], "link":link, "raw_link":raw_link,
                         "summary":clean_html(raw_summary)[:4000],
                         "image":image,
                         "published_at": int(calendar.timegm(entry.get("published_parsed") or entry.get("updated_parsed"))) if (entry.get("published_parsed") or entry.get("updated_parsed")) else 0})
