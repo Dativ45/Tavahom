@@ -265,7 +265,20 @@ def main():
                        x["source_kind"] == "خوراک مستقیم"),
         reverse=True
     )
-    selected = candidates[:min(MAX_PER_RUN, room)]
+    limit = min(MAX_PER_RUN, room)
+    selected = []
+    selected_categories = set()
+    # Prefer a mix of public-interest desks in one run; fill remaining slots if needed.
+    for item in candidates:
+        if item["category"] not in selected_categories:
+            selected.append(item)
+            selected_categories.add(item["category"])
+            if len(selected) >= limit:
+                break
+    if len(selected) < limit:
+        selected_keys = {item["key"] for item in selected}
+        selected.extend(item for item in candidates if item["key"] not in selected_keys) 
+        selected = selected[:limit]
     if not selected:
         print(f"No fresh Iran stories. scanned={len(items)}")
         return
