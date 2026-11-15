@@ -17,12 +17,12 @@ def safe_error(value: Any, *secrets: str) -> str:
     text = str(value)
     for secret in secrets:
         if secret: text = text.replace(secret, "[REDACTED]")
-    text = re.sub(r"https://api\\.telegram\\.org/bot[^/\\s]+", "https://api.telegram.org/bot[REDACTED]", text)
-    text = re.sub(r"([?&](?:key|api_key|token)=)[^&\\s]+", r"\\1[REDACTED]", text, flags=re.I)
+    text = re.sub(r"https://api\.telegram\.org/bot[^/\s]+", "https://api.telegram.org/bot[REDACTED]", text)
+    text = re.sub(r"([?&](?:key|api_key|token)=)[^&\s]+", r"\1[REDACTED]", text, flags=re.I)
     return text[:1200]
 
 def clean_html(value: str) -> str:
-    return re.sub(r"\\s+", " ", html.unescape(re.sub(r"<[^>]*>", " ", value or ""))).strip()
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]*>", " ", value or ""))).strip()
 
 def canonical_url(value: str) -> str:
     p = urlsplit((value or "").strip())
@@ -30,7 +30,7 @@ def canonical_url(value: str) -> str:
     return urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path.rstrip("/") or "/", p.query, ""))
 
 def item_key(title: str, link: str) -> str:
-    title = re.sub(r"\\s+", " ", (title or "").strip().casefold())
+    title = re.sub(r"\s+", " ", (title or "").strip().casefold())
     return hashlib.sha256((title + "|" + canonical_url(link)).encode()).hexdigest()
 
 def fetch_feed(url: str, *, timeout=DEFAULT_TIMEOUT, session=None):
