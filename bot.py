@@ -248,13 +248,20 @@ def build_post(item, translated, source_count):
     status = "⚠️ <b>تأیید مستقل نشده</b>"
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"])) if item["published_ts"] else "زمان انتشار در خوراک مشخص نیست"
     body = translated["translation_fa"] or translated["summary_fa"] or "جزئیات بیشتری در خوراک منبع موجود نبود."
+    original = item.get("summary", "").strip()
     source_link = html.escape(item["link"], quote=True)
+    original_block = (
+        "\n\n🇬🇧 <b>Original</b>\n"
+        + html.escape(item["title"][:350])
+        + ("\n" + html.escape(original[:900]) if original else "")
+    )
     return (
         "🛰️ <b>اتاق وضعیت | " + html.escape(translated["desk"]) + "</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
         + status + "\n\n"
-        + "<b>" + html.escape(translated["title_fa"][:350]) + "</b>\n"
-        + html.escape(body[:1500]) + "\n\n"
+        + "🇮🇷 <b>" + html.escape(translated["title_fa"][:350]) + "</b>\n"
+        + html.escape(body[:1500])
+        + original_block + "\n\n"
         + "🗞 منبع: " + html.escape(item["source"]) + "\n"
         + tag + "\n"
         + f"🕒 زمان منبع: {html.escape(published)}\n"
