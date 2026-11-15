@@ -1,0 +1,44 @@
+name: Validate news publishers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "bot.py"
+      - "influencer_posts.py"
+      - ".github/workflows/validate-news-publishers.yml"
+      - "requirements.txt"
+  pull_request:
+    paths:
+      - "bot.py"
+      - "influencer_posts.py"
+      - "requirements.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile news publishers
+        run: python -m py_compile bot.py influencer_posts.py
+      - name: Smoke-test editorial scoring
+        run: |
+          python - <<'PY'
+          import influencer_posts
+          samples = [
+              {"text": "The government announced new sanctions and a ceasefire proposal after the attack."},
+              {"text": "Good morning everyone, have a wonderful weekend!"},
+          ]
+          assert influencer_posts.editorial_score(samples[0]) >= 2
+          assert influencer_posts.editorial_score(samples[1]) < 2
+          print("Editorial scoring smoke test passed.")
+          PY
