@@ -6,9 +6,15 @@ on:
       - "daily_briefing.py"
       - ".github/workflows/daily-briefing.yml"
       - "tech_digest.py"
+      - "entertainment_digest.py"
+      - "iran_live_monitor.py"
+      - "iran_sports.py"
       - "science_digest.py"
       - "sports_results.py"
       - ".github/workflows/tech-digest.yml"
+      - ".github/workflows/entertainment-digest.yml"
+      - ".github/workflows/iran-live-monitor.yml"
+      - ".github/workflows/iran-sports.yml"
       - ".github/workflows/science-digest.yml"
       - ".github/workflows/sports-results.yml"
       - ".github/workflows/validate-new-desks.yml"
@@ -16,8 +22,14 @@ on:
   pull_request:
     paths:
       - "tech_digest.py"
+      - "entertainment_digest.py"
+      - "iran_live_monitor.py"
+      - "iran_sports.py"
       - "sports_results.py"
       - ".github/workflows/tech-digest.yml"
+      - ".github/workflows/entertainment-digest.yml"
+      - ".github/workflows/iran-live-monitor.yml"
+      - ".github/workflows/iran-sports.yml"
       - ".github/workflows/sports-results.yml"
       - "requirements.txt"
   workflow_dispatch:
@@ -34,4 +46,4 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Compile new publishers
-        run: python -m py_compile daily_briefing.py tech_digest.py science_digest.py sports_results.py
+        run: python -m py_compile daily_briefing.py tech_digest.py science_digest.py entertainment_digest.py iran_live_monitor.py iran_sports.py sports_results.py
