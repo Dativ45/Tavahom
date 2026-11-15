@@ -1,0 +1,69 @@
+name: Status Room Iran fast news desk
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "iran_live_monitor.py"
+      - ".github/workflows/iran-live-monitor.yml"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Safe test only; do not post to Telegram"
+        required: true
+        type: boolean
+        default: true
+  schedule:
+    # GitHub Actions schedules are best-effort; this is not guaranteed real-time.
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: status-room-iran-live-monitor
+  cancel-in-progress: false
+
+jobs:
+  iran-news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Validate Iran monitor
+        run: python -m py_compile iran_live_monitor.py
+      - name: Discover fresh Iran stories and publish
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.1-flash-lite
+          IRAN_NEWS_DRY_RUN: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        run: python iran_live_monitor.py
+      - name: Persist duplicate and hourly-limit state
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
+        run: |
+          if [ ! -f iran_live_state.json ]; then
+            echo "No live state to persist."
+            exit 0
+          fi
+          git config user.name "status-room-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add iran_live_state.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Update Iran live news state"
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            if git push; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; syncing and retrying."
+            sleep 2
+          done
+          echo "Could not persist Iran news state."
+          exit 1
