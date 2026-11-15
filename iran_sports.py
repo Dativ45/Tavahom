@@ -18,7 +18,7 @@ FEEDS={"iran":[("ایسنا","https://www.isna.ir/rss"),("مهر","https://www.m
 STATE=Path("regional_state.json")
 def clean(s): return html.unescape(re.sub(r"\s+"," ",re.sub(r"<[^>]+>","",s or ""))).strip()
 def send(msg):
- r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":msg,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35); p=r.json()
+ r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":msg,"parse_mode":"HTML","disable_web_page_preview":False},timeout=35); p=r.json()
  if not r.ok or not p.get("ok"): raise RuntimeError(p.get("description","Telegram error"))
 def translate(title,excerpt,desk):
  prompt="ترجمه و خلاصه دقیق فارسی ایران، بی‌طرف، بدون افزودن واقعیت. JSON با کلیدهای title_fa و summary_fa برگردان.\n"+json.dumps({"title":title,"excerpt":excerpt,"desk":desk},ensure_ascii=False)
