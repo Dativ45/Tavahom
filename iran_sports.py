@@ -16,7 +16,7 @@ def channel_footer():
   except (requests.RequestException,ValueError) as e:
    print("WARNING: optional channel footer lookup failed:",type(e).__name__); return ""
  if not link.startswith("https://t.me/"): print("WARNING: publishing without optional channel footer."); return ""
- return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
+ return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
 
 FEEDS={"iran":[("ایسنا","https://www.isna.ir/rss"),("مهر","https://www.mehrnews.com/rss"),("باشگاه خبرنگاران","https://www.yjc.ir/fa/rss/allnews"),("تابناک","https://www.tabnak.ir/fa/rss/allnews")],
 "sports":[("سرپوش فوتبال ایران","https://www.sarpoosh.com/rss/iran-pro-league.xml"),("سرپوش فوتبال جهان","https://www.sarpoosh.com/rss/football-world.xml"),("سرپوش ورزش","https://www.sarpoosh.com/rss/sports-news.xml")]}
