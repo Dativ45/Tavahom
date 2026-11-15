@@ -167,7 +167,7 @@ def translate_post(post):
 def publish(message):
     response = requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        json={"chat_id": CHANNEL, "text": message, "parse_mode": "HTML", "disable_web_page_preview": True},
+        json={"chat_id": CHANNEL, "text": message, "parse_mode": "HTML", "disable_web_page_preview": False},
         timeout=30,
     )
     try:
