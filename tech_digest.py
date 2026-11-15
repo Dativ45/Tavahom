@@ -26,6 +26,8 @@ FEEDS = [
     ("Wired", "https://www.wired.com/feed/rss"),
     ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
     ("9to5Google", "https://9to5google.com/feed/"),
+    ("9to5Mac", "https://9to5mac.com/feed/"),
+    ("Tom's Hardware", "https://www.tomshardware.com/feeds/all"),
 ]
 HEADERS = {"User-Agent": "StatusRoomNewsBot/1.0 (+https://t.me/StatusRoomNews)"}
 
