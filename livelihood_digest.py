@@ -1,5 +1,5 @@
 import os, re, json, html, hashlib, calendar
-from common import post_with_retry
+from common import post_with_retry, safe_channel_footer
 from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -10,18 +10,7 @@ BOT=os.getenv("TELEGRAM_BOT_TOKEN"); CHAT=os.getenv("TELEGRAM_CHAT_ID")
 KEY=os.getenv("GEMINI_API_KEY"); MODEL=os.getenv("GEMINI_MODEL","gemini-3.1-flash-lite")
 if not BOT or not CHAT or not KEY: raise SystemExit("Missing required secrets.")
 def channel_footer():
- configured=os.getenv("STATUS_ROOM_CHANNEL_URL","").strip()
- if configured.startswith("https://t.me/"): link=configured
- elif str(CHAT).startswith("@"): link="https://t.me/"+str(CHAT)[1:]
- else:
-  try:
-   r=requests.get("https://api.telegram.org/bot"+BOT+"/getChat",params={"chat_id":CHAT},timeout=5); p=r.json()
-   if not r.ok or not p.get("ok"): print("WARNING: getChat could not resolve optional footer."); return ""
-   c=p.get("result",{}); link=("https://t.me/"+c["username"]) if c.get("username") else c.get("invite_link","")
-  except (requests.RequestException,ValueError) as e:
-   print("WARNING: optional channel footer lookup failed:",type(e).__name__); return ""
- if not link.startswith("https://t.me/"): print("WARNING: publishing without optional channel footer."); return ""
- return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
+    return safe_channel_footer(BOT, CHAT, os.getenv("STATUS_ROOM_CHANNEL_URL", ""))
 
 NOW=datetime.now(ZoneInfo("Asia/Tehran"))
 STATE=Path("livelihood_state.json")
