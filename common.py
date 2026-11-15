@@ -1,10 +1,47 @@
-"""Shared conservative HTTP POST retry helper."""
+"""Shared conservative HTTP helpers for Status Room publishers."""
+import html
 import time
 from urllib.parse import urlsplit
 
 import requests
 
 RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+def safe_channel_footer(bot_token, chat_id, configured_url=""):
+    """Return an optional footer link; Telegram lookup failures never block posts."""
+    configured_url = (configured_url or "").strip()
+    if configured_url.startswith("https://t.me/"):
+        link = configured_url
+    elif str(chat_id or "").startswith("@"):
+        link = "https://t.me/" + str(chat_id)[1:]
+    elif bot_token and chat_id:
+        try:
+            response = requests.get(
+                f"https://api.telegram.org/bot{bot_token}/getChat",
+                params={"chat_id": chat_id},
+                timeout=5,
+            )
+            payload = response.json()
+            if not response.ok or not payload.get("ok"):
+                print("WARNING: getChat could not resolve optional channel footer.")
+                return ""
+            chat = payload.get("result", {})
+            username = chat.get("username")
+            link = "https://t.me/" + username if username else (chat.get("invite_link") or "")
+        except (requests.RequestException, ValueError) as exc:
+            print(f"WARNING: optional channel footer lookup failed: {type(exc).__name__}")
+            return ""
+    else:
+        return ""
+
+    if not link.startswith("https://t.me/"):
+        print("WARNING: no channel URL available; publishing without optional footer.")
+        return ""
+    return (
+        '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> '
+        '<a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
+    )
 
 
 def post_with_retry(url, attempts=3, **kwargs):
