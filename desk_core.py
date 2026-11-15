@@ -1,6 +1,6 @@
 """Shared, conservative publishing primitives for Tavahom desks."""
 from __future__ import annotations
-import hashlib, html, json, os, random, re, tempfile, time
+import calendar, hashlib, html, json, os, random, re, tempfile, time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -43,16 +43,20 @@ def fetch_feed(url: str, *, timeout=DEFAULT_TIMEOUT, session=None):
     for entry in parsed.entries:
         title, link = clean_html(entry.get("title", "")), canonical_url(entry.get("link", ""))
         if title and link:
+            raw_summary = entry.get("summary", entry.get("description", "")) or ""
             image = None
-            for candidate in (entry.get("media_content", []) or []) + (entry.get("media_thumbnail", []) or []) + (entry.get("enclosures", []) or []):
+            candidates = (entry.get("media_content", []) or []) + (entry.get("media_thumbnail", []) or []) + (entry.get("enclosures", []) or [])
+            candidates += [{"url": match} for match in re.findall(r'<img[^>]+src=["\\\']([^"\\\']+)', raw_summary, re.I)]
+            for candidate in candidates:
                 if isinstance(candidate, dict):
                     raw = candidate.get("url") or candidate.get("href")
                     if raw and urlsplit(raw).scheme in {"http", "https"} and urlsplit(raw).netloc:
                         image = raw
                         break
             out.append({"title":title[:500], "link":link,
-                        "summary":clean_html(entry.get("summary", entry.get("description", "")))[:4000],
-                        "image":image})
+                        "summary":clean_html(raw_summary)[:4000],
+                        "image":image,
+                        "published_at": int(calendar.timegm(entry.get("published_parsed") or entry.get("updated_parsed"))) if (entry.get("published_parsed") or entry.get("updated_parsed")) else 0})
     return out
 
 def _delay(attempt, retry_after=None):
