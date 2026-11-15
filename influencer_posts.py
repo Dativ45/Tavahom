@@ -116,7 +116,7 @@ def editorial_score(post):
     score = sum(
         2 if len(term.split()) > 1 else 1
         for term in IMPORTANT_TERMS
-        if re.search(r"\\b" + re.escape(term) + r"\\b", text)
+        if re.search(r"\b" + re.escape(term) + r"\b", text)
     )
     if len(text) < 100:
         score -= 2
