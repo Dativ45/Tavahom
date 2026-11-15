@@ -199,7 +199,7 @@ def build_message(item, title_fa, summary_fa):
         + html.escape(summary_fa) + "\\n\\n"
         "🗞 منبع: " + html.escape(item["source"]) + "\\n"
         "🕒 انتشار منبع: " + html.escape(published) + "\\n"
-        "🔗 <a href=\\\"" + html.escape(item["link"], quote=True) + "\\\">متن و جزئیات منبع</a>\\n\\n"
+        + '<a href="' + html.escape(item["link"], quote=True) + '">متن و جزئیات منبع</a>\\n\\n'
         "<i>زمان انتشار منبع با زمان دریافت خبر یکسان نیست.</i>"
     )
 
