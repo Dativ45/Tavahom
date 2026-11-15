@@ -83,9 +83,12 @@ def extract_event(event, league):
     teams.sort(key=lambda x: not x["home"])
     date_text = event.get("date", "")
     try:
-        kickoff = datetime.fromisoformat(date_text.replace("Z", "+00:00")).astimezone(timezone.utc).strftime("%d %b %H:%M UTC")
+        parsed_date = datetime.fromisoformat(date_text.replace("Z", "+00:00")).astimezone(timezone.utc)
+        kickoff = parsed_date.strftime("%d %b %H:%M UTC")
+        event_timestamp = int(parsed_date.timestamp())
     except (ValueError, TypeError):
         kickoff = "زمان نامشخص"
+        event_timestamp = 0
     detail = status.get("shortDetail") or status.get("detail") or "پایان‌یافته"
     links = event.get("links") or []
     source_url = next((x.get("href") for x in links if x.get("rel") and "summary" in x.get("rel")), "")
@@ -96,6 +99,7 @@ def extract_event(event, league):
         "away": teams[1],
         "status": detail,
         "date": kickoff,
+        "timestamp": event_timestamp,
         "url": source_url,
     }
 
@@ -115,7 +119,7 @@ def collect():
                 print(f"ESPN feed unavailable [{league} {date_value}]: {str(exc)[:180]}")
             except (ValueError, TypeError, KeyError) as exc:
                 print(f"ESPN parse warning [{league}]: {str(exc)[:180]}")
-    return sorted(events.values(), key=lambda x: x["date"], reverse=True)
+    return sorted(events.values(), key=lambda x: x["timestamp"], reverse=True)
 
 
 def result_line(event):
@@ -131,6 +135,13 @@ def result_line(event):
             outcome = "مساوی"
     else:
         outcome = "نتیجه ثبت‌شده"
+    raw_status = str(event.get("status", "")).lower()
+    if "ot" in raw_status or "overtime" in raw_status:
+        match_status = "پایان پس از وقت اضافه"
+    elif "shootout" in raw_status or "/so" in raw_status:
+        match_status = "پایان پس از ضربات پنالتی"
+    else:
+        match_status = "پایان مسابقه"
     home_name = html.escape(home["name"][:50])
     away_name = html.escape(away["name"][:50])
     score = f"<b>{html.escape(home_score)}</b>  —  <b>{html.escape(away_score)}</b>"
@@ -138,7 +149,7 @@ def result_line(event):
     if link and link.startswith("https://"):
         return (
             f"🏟 <b>{home_name}</b>  {score}  <b>{away_name}</b>\n"
-            f"   <i>{html.escape(outcome)} | {html.escape(event['date'])}</i> "
+            f"   <i>{html.escape(match_status)} · {html.escape(outcome)} | {html.escape(event['date'])}</i> "
             f'· <a href="{html.escape(link, quote=True)}">جزئیات</a>'
         )
     return f"🏟 <b>{home_name}</b>  {score}  <b>{away_name}</b>\n   <i>{html.escape(outcome)} | {html.escape(event['date'])}</i>"
@@ -157,7 +168,7 @@ def footer():
 
 def publish(events):
     lines = [
-        "🏆 <b>اتاق وضعیت | نتایج رسمی مسابقات</b>",
+        "🏆 <b>اتاق وضعیت | نتایج ثبت‌شده مسابقات</b>",
         "━━━━━━━━━━━━━━━━━━",
         "📊 <i>نتایج بازی‌های پایان‌یافته؛ تفکیک‌شده بر اساس لیگ و رشته</i>",
         "",
