@@ -58,6 +58,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-3.1-flash-lite
           TREND_DRY_RUN: "1"
+          TREND_STATE_FILE: /tmp/status-room-trend-dry-run-state.json
         run: python trend_radar.py --dry-run
 
   publish:
