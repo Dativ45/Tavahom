@@ -1,4 +1,4 @@
-name: Status Room Iran and sports desk
+name: Status Room regional sports news desk
 on:
   workflow_dispatch:
   schedule:
