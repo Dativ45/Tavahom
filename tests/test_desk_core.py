@@ -21,7 +21,7 @@ class CoreTests(unittest.TestCase):
             with self.assertRaises(DeskError): DeskState(p)
             self.assertEqual(p.read_text(),"{broken")
     def test_rss_notice(self):
-        self.assertIn("فقط بر پایه تیتر",format_rss_notice(""))
+        self.assertIn("بر پایه تیتر",format_rss_notice(""))
         self.assertIn("خوراک RSS",format_rss_notice("excerpt"))
     def test_secret_redaction(self):
         result=safe_error("https://api.telegram.org/bot123:ABC/sendMessage","123:ABC")
