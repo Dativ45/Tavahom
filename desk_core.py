@@ -36,7 +36,7 @@ def canonical_url(value: str) -> str:
 
 def title_similarity(left: str, right: str) -> float:
     """Conservative lexical similarity score for near-duplicate headlines."""
-    normalize = lambda value: re.sub(r"[^\\w\\s]", " ", (value or "").casefold())
+    normalize = lambda value: re.sub(r"[^\w\s]", " ", (value or "").casefold())
     a = " ".join(normalize(left).split())
     b = " ".join(normalize(right).split())
     if not a or not b: return 0.0
