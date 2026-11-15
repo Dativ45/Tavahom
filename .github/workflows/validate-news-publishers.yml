@@ -49,7 +49,7 @@ jobs:
           import feedparser
           feeds = {
               "Reuters via Google News": "https://news.google.com/rss/search?q=when:24h+site:reuters.com&ceid=US:en&hl=en-US&gl=US",
-              "AP via verified Flipboard publisher": "https://flipboard.com/@associatedpress/top-stories-u7govdf1z.rss",
+              "AP via Google News": "https://news.google.com/rss/search?q=when:24h+site:apnews.com&ceid=US:en&hl=en-US&gl=US",
           }
           for name, url in feeds.items():
               parsed = feedparser.parse(url)
