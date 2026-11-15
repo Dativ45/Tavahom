@@ -1,5 +1,14 @@
 name: Validate technology and sports desks
 on:
+  push:
+    branches: [main]
+    paths:
+      - "tech_digest.py"
+      - "sports_results.py"
+      - ".github/workflows/tech-digest.yml"
+      - ".github/workflows/sports-results.yml"
+      - ".github/workflows/validate-new-desks.yml"
+      - "requirements.txt"
   pull_request:
     paths:
       - "tech_digest.py"
