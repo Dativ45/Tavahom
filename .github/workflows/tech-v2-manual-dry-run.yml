@@ -1,0 +1,49 @@
+name: Tech v2 manual dry run
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tech-v2-manual-dry-run
+  cancel-in-progress: false
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out the PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Validate syntax
+        run: python -m py_compile desk_core.py tech_digest_v2.py
+      - name: Verify Gemini secret is configured
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::Repository secret GEMINI_API_KEY is not configured."
+            exit 1
+          fi
+      - name: Run one-story dry run (RSS + Gemini; no Telegram)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.1-flash-lite
+          TECH_V2_DRY_RUN: "1"
+        run: |
+          set -o pipefail
+          python tech_digest_v2.py 2>&1 | tee tech-v2-dry-run.log
+      - name: Keep dry-run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tech-v2-dry-run-log
+          path: tech-v2-dry-run.log
+          if-no-files-found: ignore
+          retention-days: 7
