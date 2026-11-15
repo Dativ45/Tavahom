@@ -165,33 +165,20 @@ def translate(item):
 
 
 def build_message(item, title_fa, summary_fa, score):
-    if score >= 3:
-        priority = "🚨 <b>هشدار فوری</b>"
-    else:
-        priority = "🟠 <b>تحول مهم</b>"
-    if item.get("appearances", 1) >= 2:
-        confidence = "این تیتر در چند جست‌وجوی خبری دیده شده؛ این موضوع به‌تنهایی تأیید مستقل خبر نیست."
-    else:
-        confidence = "گزارش اولیه از یک خروجی خبری است و هنوز تأیید مستقل آن در این پایشگر احراز نشده است."
+    priority = "🚨 <b>هشدار فوری</b>" if score >= 3 else "🟠 <b>تحول مهم</b>"
+    confidence = "بازتاب در چند جست‌وجو؛ تأیید مستقل نشده" if item.get("appearances", 1) >= 2 else "تأیید مستقل نشده"
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"])) if item["published_ts"] else "زمان منبع مشخص نیست"
-    original = item["title"]
-    if item["summary"]:
-        original += "\n\n" + item["summary"][:650]
     return (
-        "🛰️ <b>اتاق وضعیت | پایش زنده تحولات</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        + priority + "\n"
-        + html.escape(confidence) + "\n\n"
-        + "🇮🇷 <b>" + html.escape(title_fa) + "</b>\n"
-        + html.escape(summary_fa) + "\n\n"
-        + "🌐 <b>اصل خبر</b>\n"
-        + html.escape(original[:850]) + "\n\n"
-        + "🗞 منبع: " + html.escape(item["source"][:100]) + "\n"
-        + "🕒 زمان انتشار منبع: " + html.escape(published) + "\n"
-        + "🔗 <a href=\"" + html.escape(item["link"], quote=True) + "\">پیگیری گزارش اصلی</a>\n\n"
-        + "<i>این هشدار بر اساس خوراک خبری اولیه است؛ خبر قطعی تلقی نشود.</i>"
+        "🛰️ <b>اتاق وضعیت | پایش زنده تحولات</b>\\n"
+        "━━━━━━━━━━━━━━━━━━\\n"
+        + priority + "\\n"
+        + "⚠️ " + confidence + "\\n\\n"
+        + "🇮🇷 <b>" + html.escape(title_fa) + "</b>\\n"
+        + html.escape(summary_fa) + "\\n\\n"
+        + "🗞 منبع: " + html.escape(item["source"][:100]) + "\\n"
+        + "🕒 زمان انتشار منبع: " + html.escape(published) + "\\n"
+        + "🔗 <a href=\\"{html.escape(item['link'], quote=True)}\\">پیگیری منبع</a>"
     )
-
 
 def publish(message):
     response = requests.post(
