@@ -36,7 +36,7 @@ def channel_footer():
     if not link.startswith("https://t.me/"):
         print("WARNING: publishing without optional channel footer.")
         return ""
-    return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
+    return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
 
 if not BOT_TOKEN or not CHANNEL or not GEMINI_KEY:
     raise SystemExit("Missing required Telegram or Gemini secrets.")
