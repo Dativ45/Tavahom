@@ -7,11 +7,9 @@ import logging
 import os
 import re
 import time
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
-from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -173,7 +171,7 @@ def article_similarity(left, right):
         return 0.0
     jaccard = len(a & b) / len(a | b)
     sequence = SequenceMatcher(None, clean(left).lower(), clean(right).lower()).ratio()
-    return max(jaccard, sequence * 0.75)
+    return max(jaccard, sequence * 0.65)
 
 
 def cluster_gdelt_articles(articles):
@@ -186,7 +184,7 @@ def cluster_gdelt_articles(articles):
             if score > best_score:
                 best_score = score
                 best_group = group
-        if best_group is not None and best_score >= 0.42:
+        if best_group is not None and best_score >= 0.45:
             best_group["articles"].append(article)
         else:
             groups.append({"articles": [article]})
