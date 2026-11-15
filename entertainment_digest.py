@@ -40,7 +40,7 @@ LOW_SIGNAL = re.compile(
 
 
 def clean(value):
-    return html.unescape(re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", " ", value or ""))).strip()
+    return html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", value or ""))).strip()
 
 
 def load_state():
@@ -134,24 +134,24 @@ def footer():
         link = "https://t.me/" + CHAT[1:]
     else:
         return ""
-    return '\\n\\n📣 <a href="' + html.escape(link, quote=True) + '">عضویت در اتاق وضعیت</a>'
+    return '\n\n📣 <a href="' + html.escape(link, quote=True) + '">عضویت در اتاق وضعیت</a>'
 
 
 def publish(item, translated):
     title_fa, summary_fa, category = translated
     timestamp = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["timestamp"])) if item["timestamp"] else "در خوراک ثبت نشده"
     text = (
-        "🎬 <b>اتاق وضعیت | سرگرمی و فرهنگ</b>\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
-        f"🏷 <b>{html.escape(category)}</b>\\n\\n"
-        f"🇮🇷 <b>{html.escape(title_fa)}</b>\\n"
-        f"{html.escape(summary_fa)}\\n\\n"
-        "🌐 <b>Original (English)</b>\\n"
+        "🎬 <b>اتاق وضعیت | سرگرمی و فرهنگ</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"🏷 <b>{html.escape(category)}</b>\n\n"
+        f"🇮🇷 <b>{html.escape(title_fa)}</b>\n"
+        f"{html.escape(summary_fa)}\n\n"
+        "🌐 <b>Original (English)</b>\n"
         f"{html.escape(item['title'][:220])}"
-        + (("\\n" + html.escape(item["summary"][:500])) if item["summary"] else "")
-        + "\\n\\n━━━━━━━━━━━━━━━━━━\\n"
-        + f"🗞 منبع: {html.escape(item['source'])}\\n"
-        + f"🕒 زمان خوراک: {html.escape(timestamp)}\\n"
+        + (("\n" + html.escape(item["summary"][:500])) if item["summary"] else "")
+        + "\n\n━━━━━━━━━━━━━━━━━━\n"
+        + f"🗞 منبع: {html.escape(item['source'])}\n"
+        + f"🕒 زمان خوراک: {html.escape(timestamp)}\n"
         + f'🔗 <a href="{html.escape(item["link"], quote=True)}">گزارش اصلی</a>'
         + footer()
     )
