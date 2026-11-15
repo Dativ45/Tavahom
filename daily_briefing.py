@@ -213,7 +213,7 @@ def main():
             "chat_id": CHANNEL,
             "text": message,
             "parse_mode": "HTML",
-            "disable_web_page_preview": True,
+            "disable_web_page_preview": False,
         },
         timeout=40,
     )
