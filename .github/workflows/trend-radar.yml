@@ -1,9 +1,21 @@
-name: Status Room global trend radar
+name: Status Room global trend image radar
 
 on:
+  pull_request:
+    paths:
+      - "trend_radar.py"
+      - "tests/**"
+      - ".github/workflows/trend-radar.yml"
+      - "README_FA.md"
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "انتشار واقعی در تلگرام؛ حالت پیش‌فرض فقط dry-run است"
+        required: false
+        type: boolean
+        default: false
   schedule:
-    # Daily at 14:00 Tehran (10:30 UTC).
+    # Daily at 14:00 Tehran (10:30 UTC); GitHub starts are best-effort.
     - cron: "30 10 * * *"
 
 permissions:
@@ -14,7 +26,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  radar:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile trend radar
+        run: python -m py_compile trend_radar.py
+      - name: Run offline safety and attribution tests
+        run: python -m unittest discover -s tests -p "test_trend_radar.py" -v
+
+  dry-run:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish != true
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -24,22 +53,39 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Validate trend radar syntax
-        run: python -m py_compile trend_radar.py
-      - name: Collect, rank and publish global trends
+      - name: Collect real candidates without sending to Telegram
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.1-flash-lite
+          TREND_DRY_RUN: "1"
+        run: python trend_radar.py --dry-run
+
+  publish:
+    if: github.event_name == 'schedule' || inputs.publish == true
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Publish only licensed and validated image cards
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          STATUS_ROOM_CHANNEL_URL: ${{ secrets.STATUS_ROOM_CHANNEL_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-3.1-flash-lite
-        run: python trend_radar.py
-      - name: Persist trend duplicate-prevention state
+          TREND_DRY_RUN: "0"
+        run: python trend_radar.py --publish
+      - name: Persist image duplicate-prevention state
         run: |
           git config user.name "status-room-bot"
           git config user.email "actions@users.noreply.github.com"
           git add trend_state.json
-          git diff --cached --quiet || git commit -m "Update global trend radar state"
+          git diff --cached --quiet || git commit -m "Update licensed trend image state"
           for attempt in 1 2 3; do
             git pull --rebase origin main
             if git push; then
@@ -48,5 +94,5 @@ jobs:
             echo "Push attempt $attempt failed; retrying after syncing with origin."
             sleep 2
           done
-          echo "Could not persist trend state after 3 attempts."
+          echo "Could not persist trend image state after 3 attempts."
           exit 1
