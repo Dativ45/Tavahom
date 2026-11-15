@@ -68,6 +68,10 @@ FEEDS = [
     ("The Guardian World", "https://www.theguardian.com/world/rss", "media"),
     ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml", "media"),
     ("France 24", "https://www.france24.com/en/rss", "media"),
+    # Additional global desks: keep to world/economy feeds to reduce unrelated lifestyle/sports noise.
+    ("Financial Times", "https://www.ft.com/?format=rss", "media"),
+    ("New York Times World", "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", "media"),
+    ("Wall Street Journal World", "https://feeds.content.dowjones.io/public/rss/RSSWorldNews", "media"),
     # Reuters has no maintained official public RSS; this Google News feed is source-filtered.
     ("Reuters (via Google News)", "https://news.google.com/rss/search?q=when:24h+site:reuters.com&ceid=US:en&hl=en-US&gl=US", "media"),
     # AP's legacy apnews.com RSS endpoints are unreliable; use its verified Flipboard publisher feed.
