@@ -9,7 +9,7 @@ from pathlib import Path
 
 from desk_core import (
     DeskError, DeskState, DeliveryUncertain, fetch_feed, format_rss_notice,
-    gemini_json, item_key, telegram_send, telegram_send_photo,
+    deduplicate_items, gemini_json, item_key, telegram_send, telegram_send_photo,
 )
 
 FEEDS = [
@@ -50,7 +50,11 @@ def collect():
                 items.append(item)
         except Exception as exc:
             print(f"Feed error [{source}]: {type(exc).__name__}: {str(exc)[:180]}")
-    return items
+    unique, duplicates = deduplicate_items(items, threshold=0.92)
+    if duplicates:
+        print(f"[tech-v2] suppressed near-duplicates={len(duplicates)}")
+    print(f"[tech-v2] collected={len(items)} unique={len(unique)}")
+    return unique
 
 
 def translate(item):
@@ -65,13 +69,21 @@ def translate(item):
                       "excerpt": item["summary"]}, ensure_ascii=False)
     )
     result = gemini_json(prompt)
-    category = str(result.get("category", "فناوری مصرفی")).strip()
+    raw_title, raw_summary = result.get("title_fa"), result.get("summary_fa")
+    if not isinstance(raw_title, str) or not raw_title.strip():
+        raise DeskError("Gemini output rejected: missing Persian headline")
+    if not isinstance(raw_summary, str) or not raw_summary.strip():
+        raise DeskError("Gemini output rejected: missing Persian summary")
+    title = re.sub(r"\s+", " ", raw_title).strip()
+    summary = re.sub(r"\s+", " ", raw_summary).strip()
+    if len(title) < 4 or len(summary) < 12:
+        raise DeskError("Gemini output rejected: Persian headline or summary is too short")
+    category = result.get("category", "فناوری مصرفی")
+    if not isinstance(category, str):
+        raise DeskError("Gemini output rejected: category must be text")
+    category = category.strip()
     if category not in ALLOWED:
         category = "فناوری مصرفی"
-    title = re.sub(r"\s+", " ", str(result.get("title_fa", "")).strip()) or item["title"]
-    summary = re.sub(r"\s+", " ", str(result.get("summary_fa", "")).strip())
-    if not summary:
-        summary = "خوراک خبری جزئیات بیشتری ارائه نکرده است؛ برای اطلاعات کامل به گزارش اصلی مراجعه کنید."
     return title[:300], summary[:700], category
 
 
@@ -152,7 +164,7 @@ def main():
         print(message[:1800])
         return
 
-    state.begin(item["key"], item["title"])
+    state.begin(item["key"], item["title"], metadata={"source": item["source"], "published_at": item["timestamp"], "fetched_at": item.get("fetched_at", 0)})
     try:
         if item.get("image"):
             try:
@@ -175,7 +187,13 @@ def main():
         state.mark_failed(item["key"], str(exc))
         raise
     state.mark_sent(item["key"], result["message_id"])
-    print(f"[tech-v2] published message_id={result['message_id']} source={item['source']}")
+    sent = state.data["items"][item["key"]]
+    print(json.dumps({
+        "event": "published", "message_id": result["message_id"],
+        "source": item["source"], "published_at": item["timestamp"],
+        "fetched_at": item.get("fetched_at", 0), "sent_at": sent.get("sent_at"),
+        "publish_delay_seconds": sent.get("publish_delay_seconds")
+    }, ensure_ascii=False))
 
 
 if __name__ == "__main__":
