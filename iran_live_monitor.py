@@ -234,13 +234,18 @@ def build_message(item, title_fa, summary_fa):
         "",
         "<b>" + html.escape(title_fa) + "</b>",
         html.escape(summary_fa),
+    ]
+    if re.search(r"[A-Za-z]", item["title"]):
+        lines.extend(["", "🌐 <b>Original (English)</b>", html.escape(item["title"][:220])])
+        if item.get("summary"):
+            lines.append(html.escape(item["summary"][:500]))
+    lines.extend([
         "",
         "🗞 منبع: " + html.escape(item["source"]),
         "🕒 انتشار منبع: " + html.escape(published),
         '<a href="' + html.escape(item["link"], quote=True) + '">مشاهده منبع</a>',
-    ]
+    ])
     return chr(10).join(lines)
-
 
 def publish(message):
     response = requests.post(
