@@ -71,7 +71,7 @@ FEEDS = [
     # Reuters has no maintained official public RSS; this Google News feed is source-filtered.
     ("Reuters (via Google News)", "https://news.google.com/rss/search?q=when:24h+site:reuters.com&ceid=US:en&hl=en-US&gl=US", "media"),
     # AP's legacy apnews.com RSS endpoints are unreliable; use its verified Flipboard publisher feed.
-    ("Associated Press (Flipboard)", "https://flipboard.com/@associatedpress/top-stories-u7govdf1z.rss", "media"),
+    ("Associated Press (via Google News)", "https://news.google.com/rss/search?q=when:24h+site:apnews.com&ceid=US:en&hl=en-US&gl=US", "media"),
     ("UN News", "https://news.un.org/feed/subscribe/en/news/all/rss.xml", "official"),
     ("WHO", "https://www.who.int/rss-feeds/news-english.xml", "official"),
     ("NASA", "https://www.nasa.gov/feed/", "official"),
@@ -149,10 +149,13 @@ def fetch_items():
                     if match:
                         media_url = html.unescape(match.group(1))
                 key = hashlib.sha256((title + link).encode("utf-8")).hexdigest()
+                source_meta = entry.get("source", {}) or {}
+                source_href = source_meta.get("href", "") if hasattr(source_meta, "get") else ""
+                source_domain_url = source_href if source_href.startswith("http") else link
                 items.append({
                     "source": source,
                     "source_type": source_type,
-                    "domain": urlparse(link).netloc.lower().removeprefix("www."),
+                    "domain": urlparse(source_domain_url).netloc.lower().removeprefix("www."),
                     "title": title[:500],
                     "link": link,
                     "summary": summary[:2600],
