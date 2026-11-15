@@ -2,7 +2,7 @@ import tempfile, unittest
 from pathlib import Path
 from unittest.mock import Mock
 import requests
-from desk_core import DeskError, DeskState, DeliveryUncertain, canonical_url, format_rss_notice, item_key, safe_error, telegram_send
+from desk_core import DeskError, DeskState, DeliveryUncertain, canonical_url, format_rss_notice, item_key, safe_error, telegram_send, telegram_send_photo, fetch_feed
 
 class CoreTests(unittest.TestCase):
     def test_key_normalization(self):
