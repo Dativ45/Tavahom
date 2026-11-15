@@ -1,6 +1,12 @@
 name: Status Room global trend image radar
 
 on:
+  pull_request:
+    paths:
+      - "trend_radar.py"
+      - "tests/**"
+      - ".github/workflows/trend-radar.yml"
+      - "README_FA.md"
   workflow_dispatch:
     inputs:
       publish:
