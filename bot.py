@@ -245,7 +245,7 @@ def build_post(item, translated, source_count):
     alias = DESK_ALIASES.get(translated["desk"], "اطلس")
     archive_category = archive_category_for_desk(translated["desk"])
     tag = "🗂 <b>آرشیو: " + html.escape(archive_category or translated["desk"]) + "</b>"
-    status = "⚠️ <b>بازتاب چندمنبعی؛ تأیید مستقل نشده</b>" if source_count >= 2 else "⚠️ <b>تأیید مستقل نشده</b>"
+    status = "⚠️ <b>تأیید مستقل نشده</b>"
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"])) if item["published_ts"] else "زمان انتشار در خوراک مشخص نیست"
     body = translated["translation_fa"] or translated["summary_fa"] or "جزئیات بیشتری در خوراک منبع موجود نبود."
     source_link = html.escape(item["link"], quote=True)
