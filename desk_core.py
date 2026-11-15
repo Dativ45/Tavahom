@@ -1,9 +1,9 @@
 """Shared, conservative publishing primitives for Tavahom desks."""
 from __future__ import annotations
-import calendar, hashlib, html, json, os, random, re, tempfile, time
+import calendar, difflib, hashlib, html, json, logging, os, random, re, tempfile, time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import feedparser, requests
 
 DEFAULT_TIMEOUT = (5, 20)
@@ -25,9 +25,43 @@ def clean_html(value: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]*>", " ", value or ""))).strip()
 
 def canonical_url(value: str) -> str:
+    """Normalize URLs and remove common analytics parameters without changing article IDs."""
     p = urlsplit((value or "").strip())
     if p.scheme.lower() not in {"http", "https"} or not p.netloc: return ""
-    return urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path.rstrip("/") or "/", p.query, ""))
+    tracking = {"fbclid", "gclid", "mc_cid", "mc_eid", "ref_src"}
+    query = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True)
+             if not (k.lower().startswith("utm_") or k.lower() in tracking)]
+    return urlunsplit((p.scheme.lower(), p.netloc.lower(), p.path.rstrip("/") or "/",
+                       urlencode(sorted(query)), ""))
+
+def title_similarity(left: str, right: str) -> float:
+    """Conservative lexical similarity score for near-duplicate headlines."""
+    normalize = lambda value: re.sub(r"[^\\w\\s]", " ", (value or "").casefold())
+    a = " ".join(normalize(left).split())
+    b = " ".join(normalize(right).split())
+    if not a or not b: return 0.0
+    sequence = difflib.SequenceMatcher(None, a, b).ratio()
+    ta, tb = set(a.split()), set(b.split())
+    overlap = len(ta & tb) / max(1, min(len(ta), len(tb)))
+    return max(sequence, overlap if min(len(ta), len(tb)) >= 5 else 0.0)
+
+def deduplicate_items(items, *, threshold=0.92):
+    """Keep the newest representative of exact-link or very similar headlines."""
+    ordered = sorted(items, key=lambda item: item.get("published_at", 0), reverse=True)
+    kept, duplicates = [], []
+    seen_links = set()
+    for item in ordered:
+        link = canonical_url(item.get("link", ""))
+        if link and link in seen_links:
+            duplicates.append(item)
+            continue
+        if any(title_similarity(item.get("title", ""), old.get("title", "")) >= threshold
+               for old in kept):
+            duplicates.append(item)
+            continue
+        kept.append(item)
+        if link: seen_links.add(link)
+    return kept, duplicates
 
 def item_key(title: str, link: str) -> str:
     title = re.sub(r"\s+", " ", (title or "").strip().casefold())
@@ -37,8 +71,11 @@ def fetch_feed(url: str, *, timeout=DEFAULT_TIMEOUT, session=None):
     response = (session or requests).get(url, timeout=timeout, headers={"User-Agent":"TavahomDesk/2.0"})
     response.raise_for_status()
     parsed = feedparser.parse(response.content)
-    if getattr(parsed, "bozo", False) and not parsed.entries:
-        raise DeskError("Feed parse failed: " + safe_error(getattr(parsed, "bozo_exception", "invalid feed")))
+    if getattr(parsed, "bozo", False):
+        detail = safe_error(getattr(parsed, "bozo_exception", "invalid feed"))
+        if not parsed.entries:
+            raise DeskError("Feed parse failed: " + detail)
+        logging.warning("RSS feed partially parsed (%s): %s", urlsplit(url).netloc, detail)
     out = []
     for entry in parsed.entries:
         title, raw_link = clean_html(entry.get("title", "")), (entry.get("link", "") or "").strip()
@@ -57,7 +94,8 @@ def fetch_feed(url: str, *, timeout=DEFAULT_TIMEOUT, session=None):
             out.append({"title":title[:500], "link":link, "raw_link":raw_link,
                         "summary":clean_html(raw_summary)[:4000],
                         "image":image,
-                        "published_at": int(calendar.timegm(entry.get("published_parsed") or entry.get("updated_parsed"))) if (entry.get("published_parsed") or entry.get("updated_parsed")) else 0})
+                        "published_at": int(calendar.timegm(entry.get("published_parsed") or entry.get("updated_parsed"))) if (entry.get("published_parsed") or entry.get("updated_parsed")) else 0,
+                        "fetched_at": int(time.time())})
     return out
 
 def _delay(attempt, retry_after=None):
@@ -160,13 +198,25 @@ class DeskState:
             if isinstance(key, str) and key:
                 self.data["items"].setdefault("legacy:" + key, {"status":"sent","title":"legacy migration","updated_at":int(time.time())})
         self.save()
-    def begin(self,key,title=""):
+    def begin(self,key,title="", *, metadata=None):
         if self.status(key) not in {"new", "failed"}: raise DeskError("Item is not new or retryable")
-        self.data["items"][key]={"status":"pending","title":title[:200],"updated_at":int(time.time())}
+        now = int(time.time())
+        entry = {"status":"pending","title":title[:200],"received_at":now,"updated_at":now}
+        if isinstance(metadata, dict):
+            for field in ("source", "published_at", "fetched_at"):
+                value = metadata.get(field)
+                if isinstance(value, (str, int, float)) and value not in ("", None):
+                    entry[field] = value
+        self.data["items"][key]=entry
         self.save()
     def mark_sent(self,key,message_id):
         if self.status(key)!="pending": raise DeskError("Only pending items can be marked sent")
-        self.data["items"][key].update(status="sent",message_id=int(message_id),updated_at=int(time.time()))
+        now = int(time.time())
+        entry = self.data["items"][key]
+        entry.update(status="sent",message_id=int(message_id),sent_at=now,updated_at=now)
+        published = entry.get("published_at")
+        if isinstance(published, (int, float)) and published > 0:
+            entry["publish_delay_seconds"] = max(0, now - int(published))
         self.save()
     def mark_failed(self,key,reason=""):
         if self.status(key)!="pending": raise DeskError("Only pending items can be marked failed")
