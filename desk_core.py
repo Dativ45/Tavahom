@@ -217,6 +217,9 @@ class DeskState:
         published = entry.get("published_at")
         if isinstance(published, (int, float)) and published > 0:
             entry["publish_delay_seconds"] = max(0, now - int(published))
+        fetched = entry.get("fetched_at")
+        if isinstance(fetched, (int, float)) and fetched > 0:
+            entry["processing_delay_seconds"] = max(0, now - int(fetched))
         self.save()
     def mark_failed(self,key,reason=""):
         if self.status(key)!="pending": raise DeskError("Only pending items can be marked failed")
