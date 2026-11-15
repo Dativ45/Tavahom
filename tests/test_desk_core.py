@@ -2,6 +2,8 @@ import tempfile, unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 import requests
+from unittest.mock import patch
+from tech_digest_v2 import translate
 from desk_core import DeskError, DeskState, DeliveryUncertain, canonical_url, deduplicate_items, format_rss_notice, item_key, safe_error, telegram_send, telegram_send_photo, fetch_feed, title_similarity
 
 class CoreTests(unittest.TestCase):
@@ -44,6 +46,19 @@ class CoreTests(unittest.TestCase):
             p=Path(d)/"state.json"; p.write_text("{broken")
             with self.assertRaises(DeskError): DeskState(p)
             self.assertEqual(p.read_text(),"{broken")
+    def test_translation_rejects_missing_summary(self):
+        item={"source":"Example","title":"A technology headline","summary":"Source excerpt"}
+        with patch("tech_digest_v2.gemini_json", return_value={"title_fa":"عنوان فارسی معتبر","summary_fa":"","category":"هوش مصنوعی"}):
+            with self.assertRaises(DeskError):
+                translate(item)
+    def test_translation_accepts_complete_result(self):
+        item={"source":"Example","title":"A technology headline","summary":"Source excerpt"}
+        result={"title_fa":"عنوان فارسی معتبر","summary_fa":"این یک خلاصه فارسی معتبر و کافی است.","category":"هوش مصنوعی"}
+        with patch("tech_digest_v2.gemini_json", return_value=result):
+            title, summary, category=translate(item)
+        self.assertEqual(title,result["title_fa"])
+        self.assertEqual(summary,result["summary_fa"])
+        self.assertEqual(category,"هوش مصنوعی")
     def test_rss_notice(self):
         self.assertIn("بر پایه تیتر",format_rss_notice(""))
         self.assertIn("خوراک RSS",format_rss_notice("excerpt"))
