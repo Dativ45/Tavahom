@@ -191,7 +191,7 @@ def publish(events):
         text = text[:3850] + "\n\n<i>برای فهرست کامل، اجرای بعدی را دنبال کنید.</i>" + footer()
     response = requests.post(
         f"https://api.telegram.org/bot{BOT}/sendMessage",
-        json={"chat_id": CHAT, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True},
+        json={"chat_id": CHAT, "text": text, "parse_mode": "HTML", "disable_web_page_preview": False},
         timeout=35,
     )
     payload = response.json()
