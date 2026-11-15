@@ -12,13 +12,17 @@ if not BOT or not CHAT or not KEY: raise SystemExit("Missing required secrets.")
 def channel_footer():
  configured=os.getenv("STATUS_ROOM_CHANNEL_URL","").strip()
  if configured.startswith("https://t.me/"): link=configured
+ elif str(CHAT).startswith("@"): link="https://t.me/"+str(CHAT)[1:]
  else:
-  r=requests.get("https://api.telegram.org/bot"+BOT+"/getChat",params={"chat_id":CHAT},timeout=20); p=r.json()
-  if not r.ok or not p.get("ok"): raise RuntimeError("Telegram getChat failed: "+str(p.get("description",p)))
-  c=p.get("result",{}); link=("https://t.me/"+c["username"]) if c.get("username") else c.get("invite_link","")
-  if not link and str(CHAT).startswith("@"): link="https://t.me/"+str(CHAT)[1:]
- if not link: print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link."); return ""
- return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
+  try:
+   r=requests.get("https://api.telegram.org/bot"+BOT+"/getChat",params={"chat_id":CHAT},timeout=5); p=r.json()
+   if not r.ok or not p.get("ok"): print("WARNING: getChat could not resolve optional footer."); return ""
+   c=p.get("result",{}); link=("https://t.me/"+c["username"]) if c.get("username") else c.get("invite_link","")
+  except (requests.RequestException,ValueError) as e:
+   print("WARNING: optional channel footer lookup failed:",type(e).__name__); return ""
+ if not link.startswith("https://t.me/"): print("WARNING: publishing without optional channel footer."); return ""
+ return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
+
 NOW=datetime.now(ZoneInfo("Asia/Tehran"))
 STATE=Path("livelihood_state.json")
 HEADERS={"User-Agent":"Mozilla/5.0 (compatible; StatusRoom/1.0)"}
