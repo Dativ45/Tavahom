@@ -19,6 +19,18 @@ STATE_FILE = Path("influencer_state.json")
 MAX_AGE_SECONDS = 36 * 60 * 60
 MAX_SEEN = 3000
 MAX_POST_CHARS = 1800
+MIN_EDITORIAL_SCORE = 2
+
+IMPORTANT_TERMS = {
+    "war", "attack", "strike", "missile", "drone", "military", "troops",
+    "ceasefire", "peace", "nuclear", "sanction", "election", "vote",
+    "president", "prime minister", "parliament", "government", "minister",
+    "resign", "appoint", "arrest", "court", "ruling", "law", "policy",
+    "tariff", "trade deal", "inflation", "interest rate", "central bank",
+    "crisis", "earthquake", "flood", "fire", "outbreak", "pandemic",
+    "artificial intelligence", "ai regulation", "chip", "export control",
+    "immigration", "visa", "refugee", "border", "diplomatic",
+}
 
 # Curated starter list. Each entry is an individual/public figure or official office.
 # FxTwitter's public RSS bridge is unofficial and may become unavailable.
@@ -92,8 +104,22 @@ def fetch_recent_posts(state):
             print(f"Feed unavailable [{handle}]: {exc}")
         except Exception as exc:
             print(f"Feed parse error [{handle}]: {exc}")
-    posts.sort(key=lambda item: item["published_ts"], reverse=True)
+    for post in posts:
+        post["editorial_score"] = editorial_score(post)
+    posts = [post for post in posts if post["editorial_score"] >= MIN_EDITORIAL_SCORE]
+    posts.sort(key=lambda item: (item["editorial_score"], item["published_ts"]), reverse=True)
+    print(f"Editorial filter retained {len(posts)} high-signal post(s).")
     return posts
+
+def editorial_score(post):
+    text = post["text"].lower()
+    score = sum(2 if len(term.split()) > 1 else 1 for term in IMPORTANT_TERMS if term in text)
+    if len(text) < 100:
+        score -= 2
+    if any(term in text for term in ("like and subscribe", "giveaway", "promo code", "happy birthday")):
+        score -= 3
+    return score
+
 
 def translate_post(post):
     prompt = (
