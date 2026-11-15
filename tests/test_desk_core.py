@@ -1,6 +1,6 @@
 import tempfile, unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 import requests
 from desk_core import DeskError, DeskState, DeliveryUncertain, canonical_url, deduplicate_items, format_rss_notice, item_key, safe_error, telegram_send, telegram_send_photo, fetch_feed, title_similarity
 
@@ -27,7 +27,7 @@ class CoreTests(unittest.TestCase):
             p=Path(d)/"state.json"; s=DeskState(p); k=item_key("x","https://e.test/x")
             s.begin(k,"x",metadata={"source":"Example","published_at":100,"fetched_at":110})
             self.assertEqual(s.status(k),"pending")
-            with unittest.mock.patch("desk_core.time.time", return_value=150):
+            with patch("desk_core.time.time", return_value=150):
                 s.mark_sent(k,12)
             reloaded=DeskState(p)
             self.assertEqual(reloaded.status(k),"sent")
