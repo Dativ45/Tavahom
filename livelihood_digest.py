@@ -1,4 +1,5 @@
-import os, re, json, html, hashlib
+import os, re, json, html, hashlib, calendar
+from common import post_with_retry
 from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -35,18 +36,22 @@ FEEDS=[
 ]
 def clean(s): return html.unescape(re.sub(r"\s+"," ",BeautifulSoup(s or "","html.parser").get_text(" ",strip=True))).strip()
 def send(text):
- r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":text,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35)
+ r=post_with_retry("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":text,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35)
  p=r.json()
  if not r.ok or not p.get("ok"): raise RuntimeError(p.get("description","Telegram send failed"))
  return p["result"]["message_id"]
 def get_state():
- try: return json.loads(STATE.read_text(encoding="utf-8"))
+ try:
+  state=json.loads(STATE.read_text(encoding="utf-8")); state.setdefault("seen_news",[]); state.setdefault("seen_deals",[]); return state
  except Exception: return {"seen_news":[],"seen_deals":[]}
+def save_state(state):
+ state["seen_news"]=state.get("seen_news",[])[-2500:]; state["seen_deals"]=state.get("seen_deals",[])[-1500:]
+ STATE.write_text(json.dumps(state,ensure_ascii=False,indent=2),encoding="utf-8")
 def translate(title,summary):
  prompt="این خبر اقتصادی/معیشتی را دقیق و بی‌طرف به فارسی روان ایران خلاصه کن. هیچ رقم، تاریخ، مصوبه یا قطعیتی را اضافه نکن. اگر خبر صرفاً نقل قول یا پیشنهاد است، همان را روشن بنویس. حداکثر ۳ جمله. JSON با کلید summary برگردان.\
 "+json.dumps({"title":title,"summary":summary},ensure_ascii=False)
  u=f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
- r=requests.post(u,headers={"x-goog-api-key":KEY,"Content-Type":"application/json"},json={"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.1,"responseMimeType":"application/json","maxOutputTokens":300}},timeout=45)
+ r=post_with_retry(u,headers={"x-goog-api-key":KEY,"Content-Type":"application/json"},json={"contents":[{"parts":[{"text":prompt}]}],"generationConfig":{"temperature":0.1,"responseMimeType":"application/json","maxOutputTokens":300}},timeout=45)
  r.raise_for_status()
  raw="".join(x.get("text","") for x in r.json().get("candidates",[{}])[0].get("content",{}).get("parts",[]))
  try: return clean(json.loads(raw).get("summary",""))
@@ -64,8 +69,7 @@ def livelihood_news(state):
     if not title or not link.startswith("http") or not is_livelihood_title(title): continue
     published=e.get("published_parsed") or e.get("updated_parsed")
     if published:
-     from time import mktime
-     age=datetime.now(timezone.utc).timestamp()-mktime(published)
+     age=datetime.now(timezone.utc).timestamp()-calendar.timegm(published)
      if age>72*3600: continue
     key=hashlib.sha256((title+link).encode()).hexdigest()
     if key not in state["seen_news"]: items.append((source,title,summary,link,key))
@@ -77,7 +81,7 @@ def livelihood_news(state):
       "🟠 <b>"+html.escape(title)+"</b>\n"+html.escape(fa or "خلاصه قابل اتکا در خوراک منبع موجود نبود.")+
       "\n\n🗞 منبع: "+html.escape(source)+"\n🔗 <a href=\""+html.escape(link,quote=True)+"\">متن کامل خبر</a>"+
       "\n\n⚠️ <i>خبر و اظهارنظر از هم تفکیک می‌شود؛ تغییر حقوق یا یارانه فقط با سند اجرایی قطعی اعلام خواهد شد.</i>\n— <b>تراز</b> | میز معیشت"+channel_footer())
- send(msg); state["seen_news"].append(key); print("Published livelihood news:",title)
+ send(msg); state["seen_news"].append(key); save_state(state); print("Published livelihood news:",title)
 def telegram_deals(state):
  # Public previews of the brands' own Telegram channels; only fresh, dated posts are eligible.
  channels=[("اُکالا","okala_com"),("دیجی‌کالا","digikalaofficialaccount")]
@@ -109,12 +113,11 @@ def telegram_deals(state):
       +html.escape(text[:900])+"\n\n🕒 زمان انتشار منبع: "+dt.strftime("%Y-%m-%d %H:%M")+" تهران"
       +"\n🔗 <a href=\""+html.escape(href,quote=True)+"\">مشاهده پست اصلی فروشگاه</a>"
       +"\n\n⚠️ <i>قیمت، موجودی، شهرهای مشمول و مهلت را پیش از پرداخت در خود فروشگاه بررسی کنید؛ تخفیف منقضی بازنشر نمی‌شود.</i>\n— <b>تراز</b> | رصد خرید روزانه"+channel_footer())
- send(msg); state["seen_deals"].append(key); print("Published official deal:",brand)
+ send(msg); state["seen_deals"].append(key); save_state(state); print("Published official deal:",brand)
 def main():
  state=get_state()
- livelihood_news(state)
- telegram_deals(state)
- state["seen_news"]=state["seen_news"][-2500:]
- state["seen_deals"]=state["seen_deals"][-1500:]
- STATE.write_text(json.dumps(state,ensure_ascii=False,indent=2),encoding="utf-8")
+ for publisher in (livelihood_news, telegram_deals):
+  try: publisher(state)
+  except Exception as ex: print("Publisher section failed; continuing:",str(ex)[:220])
+ save_state(state)
 if __name__=="__main__": main()

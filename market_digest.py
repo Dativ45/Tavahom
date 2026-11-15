@@ -1,4 +1,5 @@
 import os,html,requests
+from common import post_with_retry
 from datetime import datetime
 from zoneinfo import ZoneInfo
 BOT=os.getenv("TELEGRAM_BOT_TOKEN"); CHAT=os.getenv("TELEGRAM_CHAT_ID")
@@ -65,13 +66,13 @@ def main():
      label=html.escape(name)
      if isinstance(link,str) and link.startswith("http"): label='<a href="'+html.escape(link,quote=True)+'">'+label+'</a>'
      lines.append(f"• {label}: <b>{toman(price)} تومان</b> | {pts} داده")
-    sections.append("🚘 <b>قیمت خودروهای منتخب</b>\n"+"\n".join(lines)+"\n<small>قیمت میانهٔ خودرو کارکرده با بدنه سالم؛ تعداد داده کنار هر مدل آمده است.</small>\nمنبع: <a href=\"https://nemuda.com/data\">نمودا</a>")
+    sections.append("🚘 <b>قیمت خودروهای منتخب</b>\n"+"\n".join(lines)+"\n<small>قیمت‌های گزارش‌شده در داده‌های نمودا؛ وضعیت بدنه از این داده‌ها قابل احراز نیست. تعداد داده کنار هر مدل آمده است.</small>\nمنبع: <a href=\"https://nemuda.com/data\">نمودا</a>")
   except Exception as e: print("Vehicle data unavailable:",str(e)[:180])
  if not sections:
   print("No sufficiently fresh price data; nothing posted.")
   return
  msg="🛰️ <b>اتاق وضعیت | تابلوی بازار</b>\n━━━━━━━━━━━━━━━━━━\n"+"\n\n".join(sections)+"\n\n⚠️ <i>اطلاع‌رسانی، نه توصیه خریدوفروش. داده قدیمی یا نامعتبر منتشر نمی‌شود.</i>\n— <b>تراز</b> | تحریریه اقتصاد"+channel_footer()
- r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":msg,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35); p=r.json()
+ r=post_with_retry("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":msg,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35); p=r.json()
  if not r.ok or not p.get("ok"): raise SystemExit(p.get("description","Telegram send failed"))
  print("Published market bulletin",p["result"]["message_id"])
 if __name__=="__main__": main()

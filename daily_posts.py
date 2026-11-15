@@ -1,6 +1,7 @@
 import os
 import html
 import requests
+from common import post_with_retry
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -51,7 +52,7 @@ else:
     )
 
 url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
-response = requests.post(
+response = post_with_retry(
     url,
     headers={"x-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
     json={
@@ -78,7 +79,7 @@ post = (
     "<i>نام‌ها پنهان می‌مانند؛ حقیقت نه.</i>"
     + channel_footer()
 )
-tg = requests.post(
+tg = post_with_retry(
     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
     json={"chat_id": CHANNEL, "text": post, "parse_mode": "HTML", "disable_web_page_preview": True},
     timeout=35,

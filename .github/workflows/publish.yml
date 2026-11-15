@@ -30,6 +30,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          STATUS_ROOM_CHANNEL_URL: ${{ secrets.STATUS_ROOM_CHANNEL_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-3.1-flash-lite
         run: python bot.py
@@ -40,8 +41,8 @@ jobs:
           git add state.json
           git diff --cached --quiet || git commit -m "Update published story state"
           for attempt in 1 2 3; do
-            git pull --rebase origin main
-            if git push; then
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            if git push origin "${GITHUB_REF_NAME}"; then
               exit 0
             fi
             echo "Push attempt $attempt failed; retrying after syncing with origin."

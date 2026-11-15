@@ -4,6 +4,8 @@ import hashlib
 import html
 import re
 import time
+import calendar
+from common import post_with_retry
 from pathlib import Path
 from difflib import SequenceMatcher
 from urllib.parse import urlparse
@@ -97,6 +99,7 @@ def load_state():
 
 def save_state(state):
     state["seen"] = state.get("seen", [])[-MAX_SEEN:]
+    state["recent_titles"] = state.get("recent_titles", [])[-400:]
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def fetch_items():
@@ -113,7 +116,7 @@ def fetch_items():
                 if not title or not link.startswith("http"):
                     continue
                 published = entry.get("published_parsed") or entry.get("updated_parsed")
-                published_ts = int(time.mktime(published)) if published else 0
+                published_ts = int(calendar.timegm(published)) if published else 0
                 key = hashlib.sha256((title + link).encode("utf-8")).hexdigest()
                 items.append({
                     "source": source,
@@ -145,6 +148,19 @@ def related_source_count(item, all_items):
             domains.add(other["domain"])
     return len(domains)
 
+def is_repeat_story(title, recent_titles):
+    words = lambda value: {w for w in re.findall(r"[a-z0-9]{4,}", value.lower())}
+    candidate_words = words(title)
+    for previous in recent_titles[-400:]:
+        previous_words = words(previous)
+        if SequenceMatcher(None, title.lower(), previous.lower()).ratio() >= 0.88:
+            return True
+        if len(candidate_words) >= 5 and len(previous_words) >= 5:
+            overlap = len(candidate_words & previous_words) / max(1, min(len(candidate_words), len(previous_words)))
+            if overlap >= 0.92: return True
+    return False
+
+
 def load_personas():
     try:
         return json.loads(CONFIG_FILE.read_text(encoding="utf-8")).get("personas", [])
@@ -164,7 +180,7 @@ def translate_and_classify(item):
         + json.dumps({"source": item["source"], "headline": item["title"], "excerpt": item["summary"]}, ensure_ascii=False)
     )
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-    response = requests.post(
+    response = post_with_retry(
         url,
         headers={"x-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
         json={
@@ -243,7 +259,7 @@ def build_post(item, translated, source_count):
     )
 
 def publish(message):
-    response = requests.post(
+    response = post_with_retry(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         json={
             "chat_id": CHANNEL,
@@ -314,7 +330,7 @@ def update_navigation(state):
                 lines.append(f'   • <a href="{html.escape(link, quote=True)}">{title}</a>')
         lines.append("")
     text = "\n".join(lines).strip()
-    response = requests.post(
+    response = post_with_retry(
         f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText",
         json={
             "chat_id": CHANNEL,
@@ -338,7 +354,7 @@ def ensure_navigation(state):
     message_id = publish("📌 <b>آرشیو موضوعی اتاق وضعیت</b>\nدر حال آماده‌سازی فهرست پیوندهای داخلی کانال…")
     if not message_id:
         raise RuntimeError("Telegram returned no message ID for archive index.")
-    response = requests.post(
+    response = post_with_retry(
         f"https://api.telegram.org/bot{BOT_TOKEN}/pinChatMessage",
         json={"chat_id": CHANNEL, "message_id": message_id, "disable_notification": True},
         timeout=35,
@@ -356,33 +372,41 @@ def main():
     state = load_state()
     ensure_navigation(state)
     seen = set(state.get("seen", []))
+    recent_titles = list(state.get("recent_titles", []))
     all_items = fetch_items()
     fresh = [item for item in all_items if item["key"] not in seen]
     if not fresh:
         print("No unseen stories in the available feeds.")
         return
-    # No publication-age cutoff: old but previously unseen feed entries remain eligible.
+    # No arbitrary age cutoff: all unseen feed entries remain eligible.
     fresh.sort(key=lambda item: item.get("published_ts", 0), reverse=True)
     published_count = 0
-    for item in fresh[:MAX_POSTS_PER_RUN]:
-        translated = translate_and_classify(item)
-        source_count = related_source_count(item, all_items)
-        message_id = publish(build_post(item, translated, source_count))
-        category = archive_category_for_desk(translated["desk"])
-        if category and message_id:
-            state.setdefault("archive", []).append({
-                "category": category,
-                "title": translated["title_fa"],
-                "message_id": message_id,
-            })
-            state["archive"] = state["archive"][-500:]
-        seen.add(item["key"])
-        published_count += 1
-        print(f"Published: {item['title']} [{item['source']}] message_id={message_id}")
-    state["seen"] = list(seen)
-    save_state(state)
-    update_navigation(state)
-    print(f"Published {published_count} item(s). Archive index updated.")
+    attempts = 0
+    for item in fresh:
+        if published_count >= MAX_POSTS_PER_RUN or attempts >= MAX_POSTS_PER_RUN * 3: break
+        if is_repeat_story(item["title"], recent_titles):
+            seen.add(item["key"]); state["seen"] = list(seen); save_state(state)
+            print("Skipped near-duplicate headline:", item["title"]); continue
+        attempts += 1
+        try:
+            translated = translate_and_classify(item)
+            source_count = related_source_count(item, all_items)
+            message_id = publish(build_post(item, translated, source_count))
+            category = archive_category_for_desk(translated["desk"])
+            if category and message_id:
+                state.setdefault("archive", []).append({"category": category, "title": translated["title_fa"], "message_id": message_id})
+                state["archive"] = state["archive"][-500:]
+            seen.add(item["key"]); recent_titles.append(item["title"])
+            state["seen"] = list(seen); state["recent_titles"] = recent_titles[-400:]
+            save_state(state)
+            published_count += 1
+            print(f"Published: {item['title']} [{item['source']}] message_id={message_id}")
+        except Exception as exc:
+            print(f"Item failed; remains eligible for a later run [{item.get('source')}]: {str(exc)[:300]}")
+    try: update_navigation(state)
+    except Exception as exc: print("Archive navigation update failed; post state already saved:", str(exc)[:250])
+    print(f"Published {published_count} item(s).")
+
 
 if __name__ == "__main__":
     main()
