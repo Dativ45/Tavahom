@@ -2,18 +2,37 @@ import tempfile, unittest
 from pathlib import Path
 from unittest.mock import Mock
 import requests
-from desk_core import DeskError, DeskState, DeliveryUncertain, canonical_url, format_rss_notice, item_key, safe_error, telegram_send, telegram_send_photo, fetch_feed
+from desk_core import DeskError, DeskState, DeliveryUncertain, canonical_url, deduplicate_items, format_rss_notice, item_key, safe_error, telegram_send, telegram_send_photo, fetch_feed, title_similarity
 
 class CoreTests(unittest.TestCase):
     def test_key_normalization(self):
         self.assertEqual(item_key(" A  B ", "https://EXAMPLE.com/a/#x"), item_key("a b", "https://example.com/a"))
     def test_reject_non_http_url(self):
         self.assertEqual(canonical_url("javascript:alert(1)"), "")
+    def test_tracking_parameters_do_not_change_url_identity(self):
+        self.assertEqual(canonical_url("https://EXAMPLE.com/story?utm_source=x&id=4#top"),
+                         canonical_url("https://example.com/story?id=4"))
+    def test_conservative_near_duplicate_detection(self):
+        a = {"title":"OpenAI announces a major new artificial intelligence model today", "link":"https://a.test/1", "published_at":20}
+        b = {"title":"OpenAI announces major new artificial intelligence model today", "link":"https://b.test/2", "published_at":10}
+        c = {"title":"Football team wins championship after final match", "link":"https://c.test/3", "published_at":5}
+        unique, duplicates = deduplicate_items([b, c, a], threshold=0.88)
+        self.assertEqual(len(unique), 2)
+        self.assertEqual(len(duplicates), 1)
+        self.assertGreater(title_similarity(a["title"], b["title"]), 0.88)
+    def test_short_headline_containment_is_not_duplicate(self):
+        self.assertLess(title_similarity("Apple event", "Apple event changes global technology market"), 0.90)
     def test_state_lifecycle(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/"state.json"; s=DeskState(p); k=item_key("x","https://e.test/x")
-            s.begin(k,"x"); self.assertEqual(s.status(k),"pending"); s.mark_sent(k,12)
-            self.assertEqual(DeskState(p).status(k),"sent")
+            s.begin(k,"x",metadata={"source":"Example","published_at":100,"fetched_at":110})
+            self.assertEqual(s.status(k),"pending")
+            with unittest.mock.patch("desk_core.time.time", return_value=150):
+                s.mark_sent(k,12)
+            reloaded=DeskState(p)
+            self.assertEqual(reloaded.status(k),"sent")
+            self.assertEqual(reloaded.data["items"][k]["publish_delay_seconds"],50)
+            self.assertEqual(reloaded.data["items"][k]["source"],"Example")
             with self.assertRaises(DeskError): s.begin(k)
     def test_legacy_seen_import(self):
         with tempfile.TemporaryDirectory() as d:
