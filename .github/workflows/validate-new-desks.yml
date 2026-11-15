@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
     paths:
+      - "daily_briefing.py"
+      - ".github/workflows/daily-briefing.yml"
       - "tech_digest.py"
       - "sports_results.py"
       - ".github/workflows/tech-digest.yml"
@@ -30,4 +32,4 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Compile new publishers
-        run: python -m py_compile tech_digest.py sports_results.py
+        run: python -m py_compile daily_briefing.py tech_digest.py sports_results.py
