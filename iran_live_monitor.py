@@ -188,20 +188,26 @@ def build_message(item, title_fa, summary_fa):
     else:
         confidence = "گزارش اولیه؛ تأیید مستقل در این سامانه احراز نشده است."
         desk_label = item["category"]
-    return (
-        "🇮🇷 <b>اتاق وضعیت | خبر ایران</b>\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
-        "🗂 <b>" + html.escape(desk_label) + "</b>\\n"
-        "⚠️ " + confidence + "\\n"
-        + ("⛔ اطلاعات هویتی افراد عادی بازنشر نمی‌شود.\\n" if item.get("citizen_report") else "")
-        + "\\n"
-        "<b>" + html.escape(title_fa) + "</b>\\n"
-        + html.escape(summary_fa) + "\\n\\n"
-        "🗞 منبع: " + html.escape(item["source"]) + "\\n"
-        "🕒 انتشار منبع: " + html.escape(published) + "\\n"
-        + '<a href="' + html.escape(item["link"], quote=True) + '">متن و جزئیات منبع</a>\\n\\n'
-        "<i>زمان انتشار منبع با زمان دریافت خبر یکسان نیست.</i>"
-    )
+    lines = [
+        "🇮🇷 <b>اتاق وضعیت | خبر ایران</b>",
+        "━━━━━━━━━━━━━━━━━━",
+        "🗂 <b>" + html.escape(desk_label) + "</b>",
+        "⚠️ " + confidence,
+    ]
+    if item.get("citizen_report"):
+        lines.append("⛔ اطلاعات هویتی افراد عادی بازنشر نمی‌شود.")
+    lines.extend([
+        "",
+        "<b>" + html.escape(title_fa) + "</b>",
+        html.escape(summary_fa),
+        "",
+        "🗞 منبع: " + html.escape(item["source"]),
+        "🕒 انتشار منبع: " + html.escape(published),
+        '<a href="' + html.escape(item["link"], quote=True) + '">متن و جزئیات منبع</a>',
+        "",
+        "<i>زمان انتشار منبع با زمان دریافت خبر یکسان نیست.</i>",
+    ])
+    return chr(10).join(lines)
 
 def publish(message):
     response = requests.post(
