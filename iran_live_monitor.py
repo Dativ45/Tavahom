@@ -41,6 +41,8 @@ SEARCHES = [
     ("جامعه و حوادث", "ایران جامعه حوادث آموزش سلامت محیط زیست"),
     ("مهاجرت و کنسولی", "ایران مهاجرت ویزا سفارت قوانین اقامت"),
     ("استان‌ها", "اخبار استان های ایران استانداری حوادث تعطیلی"),
+    ("گزارش‌های مردمی", '"گزارش مردمی" OR "شهروند خبرنگار" OR "ویدئوی ارسالی شهروندان" OR "گزارش شهروندان" ایران'),
+    ("صدای محله‌ها", '"گزارش محلی" OR "ارسالی مخاطبان" OR "روایت شهروندان" ایران حادثه قطعی آب برق آلودگی'),
 ]
 CATEGORY_RULES = [
     ("امنیت و منطقه", r"موشک|پهپاد|حمله|انفجار|پدافند|نظامی|اسرائیل|آمریکا|جنگ|آتش.?بس|تنگه هرمز|خلیج فارس|تحریم"),
@@ -98,6 +100,7 @@ def make_item(source, title, summary, link, published_ts, source_kind):
         "key": key,
         "category": category(body),
         "source_kind": source_kind,
+        "citizen_report": bool(re.search(r"گزارش مردمی|شهروند.?خبرنگار|ارسالی مخاطبان|ویدئو.?ی ارسالی|روایت شهروندان|گزارش محلی", (title + " " + clean(summary)).lower())),
     }
 
 def fetch_all():
@@ -177,8 +180,7 @@ def translate(item):
 
 def build_message(item, title_fa, summary_fa):
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"]))
-    confidence = "گزارش اولیه؛ تأیید مستقل در این سامانه احراز نشده است."
-    return (
+    if item.get("citizen_report"):\n        confidence = "گزارش مردمی بازنشرشده؛ تأیید مستقل نشده و صرفاً برای اطلاع‌رسانی است."\n        desk_label = "صدای مردم | " + item["category"]\n    else:\n        confidence = "گزارش اولیه؛ تأیید مستقل در این سامانه احراز نشده است."\n        desk_label = item["category"]\n    return (
         "🇮🇷 <b>اتاق وضعیت | خبر ایران</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
         "🗂 <b>" + html.escape(item["category"]) + "</b>\n"
