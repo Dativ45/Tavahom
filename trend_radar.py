@@ -564,7 +564,11 @@ def main(argv=None):
         if not payload:
             log.info("Image download/format validation failed; skipped: %s", item["topic"])
             continue
-        caption = build_caption(item, image)
+        try:
+            caption = build_caption(item, image)
+        except ValueError as exc:
+            log.warning("Caption validation failed; image skipped: %s", exc)
+            continue
         if dry_run:
             log.info(
                 "DRY-RUN only: topic=%s | image_id=%s | license=%s | creator=%s | source=%s",
