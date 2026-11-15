@@ -254,7 +254,7 @@ def publish(message):
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
         json={
             "chat_id": CHANNEL, "text": message, "parse_mode": "HTML",
-            "disable_web_page_preview": True,
+            "disable_web_page_preview": False,
         }, timeout=35,
     )
     try:
