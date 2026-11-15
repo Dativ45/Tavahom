@@ -18,7 +18,7 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 CHANNEL = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
-STATE_FILE = Path("trend_state.json")
+STATE_FILE = Path(os.getenv("TREND_STATE_FILE", "trend_state.json"))
 TEHRAN = ZoneInfo("Asia/Tehran")
 
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
