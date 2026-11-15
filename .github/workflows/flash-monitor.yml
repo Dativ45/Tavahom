@@ -1,6 +1,11 @@
 name: Status Room breaking-news flash monitor
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "flash_monitor.py"
+      - ".github/workflows/flash-monitor.yml"
   workflow_dispatch:
     inputs:
       dry_run:
