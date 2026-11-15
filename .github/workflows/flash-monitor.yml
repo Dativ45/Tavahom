@@ -1,0 +1,64 @@
+name: Status Room breaking-news flash monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run a safe test without posting to Telegram"
+        required: true
+        type: boolean
+        default: true
+  schedule:
+    # GitHub schedules are best-effort, not guaranteed real-time delivery.
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: status-room-flash-monitor
+  cancel-in-progress: false
+
+jobs:
+  flash-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Validate flash monitor syntax
+        run: python -m py_compile flash_monitor.py
+      - name: Scan targeted feeds and publish qualifying alerts
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.1-flash-lite
+          FLASH_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: python flash_monitor.py
+      - name: Persist flash-alert duplicate-prevention state
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false) }}
+        run: |
+          if [ ! -f flash_state.json ]; then
+            echo "No new alert state to persist."
+            exit 0
+          fi
+          git config user.name "status-room-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add flash_state.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Update breaking-news flash state"
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            if git push; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; syncing and retrying."
+            sleep 2
+          done
+          echo "Could not persist flash state after 3 attempts."
+          exit 1
