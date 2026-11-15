@@ -149,6 +149,7 @@ def fetch_all():
                 item = make_item(publisher or label, title, entry.get("summary", entry.get("description", "")), entry.get("link", ""), ts, "Google News RSS")
                 if item:
                     item["query_desk"] = label
+                    item["citizen_report"] = item.get("citizen_report", False) or label_is_citizen(label)
                     items.append(item)
             print(f"Search {label}: {len(feed.entries)} entries")
         except Exception as exc:
