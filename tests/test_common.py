@@ -51,6 +51,24 @@ class RetryTests(unittest.TestCase):
         self.assertEqual(post.call_count, 2)
         sleep.assert_called_once_with(5)
 
+    @patch("common.requests.get", side_effect=common.requests.ReadTimeout("getChat timeout"))
+    def test_footer_timeout_never_blocks_publishing(self, get):
+        footer = common.safe_channel_footer("TOKEN", "-100123")
+        self.assertEqual(footer, "")
+        get.assert_called_once()
+
+    @patch("common.requests.get")
+    def test_footer_uses_configured_link_without_network(self, get):
+        footer = common.safe_channel_footer("TOKEN", "-100123", "https://t.me/statusroom")
+        self.assertIn("https://t.me/statusroom", footer)
+        get.assert_not_called()
+
+    @patch("common.requests.get")
+    def test_footer_uses_public_username_without_network(self, get):
+        footer = common.safe_channel_footer("TOKEN", "@statusroom")
+        self.assertIn("https://t.me/statusroom", footer)
+        get.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
