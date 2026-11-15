@@ -1,54 +1,58 @@
+import argparse
+import hashlib
+import html
+import io
+import json
+import logging
 import os
 import re
-import json
-import html
-import hashlib
-import logging
+import time
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from difflib import SequenceMatcher
 from pathlib import Path
-from datetime import datetime, timezone
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
-from urllib.parse import quote
 
-import feedparser
 import requests
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHANNEL = os.getenv("TELEGRAM_CHAT_ID")
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+CHANNEL = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 STATE_FILE = Path("trend_state.json")
 TEHRAN = ZoneInfo("Asia/Tehran")
-GOOGLE_TRENDS = "https://trends.google.com/trending/rss?geo={}"
-REGIONS = {
-    "US": "آمریکا", "GB": "بریتانیا", "DE": "آلمان",
-    "JP": "ژاپن", "IN": "هند", "CA": "کانادا",
-    "AU": "استرالیا", "FR": "فرانسه",
+
+GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
+OPENVERSE_URL = "https://api.openverse.org/v1/images/"
+GDELT_QUERIES = [
+    ("فناوری", '("artificial intelligence" OR "machine learning" OR semiconductor OR cybersecurity)'),
+    ("علم و محیط زیست", '("climate change" OR "space exploration" OR NASA OR biodiversity)'),
+    ("ورزش", '(football OR basketball OR cricket OR tennis OR Olympics)'),
+    ("فرهنگ", '(cinema OR film OR music OR festival OR literature)'),
+    ("اقتصاد", '(inflation OR trade OR energy OR "central bank" OR employment)'),
+]
+ALLOWED_LICENSES = {"cc0", "by", "by-sa"}
+ALLOWED_FILETYPES = {"jpg", "jpeg", "png"}
+STOPWORDS = {
+    "the", "and", "for", "with", "from", "that", "this", "after", "before",
+    "over", "under", "into", "about", "says", "said", "live", "latest",
+    "update", "updates", "news", "report", "reports", "today", "november",
+    "nov", "2026", "world", "global", "what", "when", "where", "will",
+    "has", "have", "had", "are", "was", "were", "its", "their", "his",
+    "her", "you", "your", "our", "they", "them", "how", "why", "who",
 }
-MAX_POSTS = 3
-MAX_CANDIDATES = 18
-TIMEOUT = 20
+MAX_DAILY_IMAGES = 3
+MAX_ARTICLES_PER_QUERY = 18
+MAX_CANDIDATES = 12
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
+GDELT_MIN_INTERVAL = 5.3
+REQUEST_TIMEOUT = 18
+USER_AGENT = "StatusRoomTrendRadar/2.0 (+https://github.com/Dativ45/Tavahom)"
+_LAST_GDELT_REQUEST = 0.0
 
-
-def channel_footer():
-    configured = os.getenv("STATUS_ROOM_CHANNEL_URL", "").strip()
-    if configured.startswith("https://t.me/"):
-        link = configured
-    else:
-        response = requests.get(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/getChat",
-            params={"chat_id": CHANNEL}, timeout=TIMEOUT,
-        )
-        payload = response.json()
-        if not response.ok or not payload.get("ok"):
-            raise RuntimeError("Telegram getChat failed: " + str(payload.get("description", payload)))
-        chat = payload.get("result", {})
-        link = ("https://t.me/" + chat["username"]) if chat.get("username") else chat.get("invite_link", "")
-        if not link and str(CHANNEL).startswith("@"):
-            link = "https://t.me/" + str(CHANNEL)[1:]
-    if not link:
-        print("WARNING: channel follow link unavailable; set STATUS_ROOM_CHANNEL_URL.")
-        return ""
-    return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+log = logging.getLogger("status-room-trends")
 
 
 def clean(value):
@@ -61,253 +65,499 @@ def load_state():
         data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
         if isinstance(data, dict):
             data.setdefault("posted", [])
+            data.setdefault("images_posted", [])
             return data
     except (FileNotFoundError, json.JSONDecodeError):
         pass
-    return {"posted": []}
+    return {"posted": [], "images_posted": []}
 
 
 def save_state(state):
     state["posted"] = state.get("posted", [])[-1200:]
-    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def fetch_google_trends():
-    by_topic = {}
-    for code, country in REGIONS.items():
-        url = GOOGLE_TRENDS.format(code)
-        try:
-            response = requests.get(url, headers={"User-Agent": "StatusRoomTrendRadar/1.0"}, timeout=TIMEOUT)
-            response.raise_for_status()
-            feed = feedparser.parse(response.content)
-            for entry in feed.entries[:20]:
-                title = clean(entry.get("title"))
-                if not title:
-                    continue
-                key = re.sub(r"[^a-z0-9\u0600-\u06ff]+", " ", title.lower()).strip()
-                if not key:
-                    continue
-                item = by_topic.setdefault(key, {
-                    "key": key, "topic": title, "regions": [], "traffic": [],
-                    "trend_links": [], "published": [],
-                })
-                if country not in item["regions"]:
-                    item["regions"].append(country)
-                traffic = clean(entry.get("ht_approx_traffic", ""))
-                if traffic and traffic not in item["traffic"]:
-                    item["traffic"].append(traffic)
-                link = entry.get("link", "")
-                if link.startswith("http") and link not in item["trend_links"]:
-                    item["trend_links"].append(link)
-                published = clean(entry.get("published", ""))
-                if published and published not in item["published"]:
-                    item["published"].append(published)
-        except Exception as exc:
-            print(f"Google Trends feed unavailable [{code}]: {exc}")
-    return list(by_topic.values())
-
-
-def gdelt_coverage(topic):
-    # GDELT is used as a news-coverage cross-check, not as proof that a claim is true.
-    query = quote('"' + topic[:100] + '"')
-    url = (
-        "https://api.gdeltproject.org/api/v2/doc/doc"
-        f"?query={query}&mode=ArtList&format=json&maxrecords=15&timespan=24h&sort=DateDesc"
+    state["images_posted"] = state.get("images_posted", [])[-1200:]
+    STATE_FILE.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
     )
-    try:
-        response = requests.get(url, headers={"User-Agent": "StatusRoomTrendRadar/1.0"}, timeout=TIMEOUT)
-        response.raise_for_status()
-        data = response.json()
-        articles = data.get("articles", []) if isinstance(data, dict) else []
-        domains = set()
-        examples = []
-        for article in articles:
-            domain = clean(article.get("domain", "")).lower()
-            if domain:
-                domains.add(domain.removeprefix("www."))
-            title = clean(article.get("title", ""))
-            link = article.get("url", "")
-            if title and link.startswith("http") and len(examples) < 3:
-                examples.append({"title": title[:180], "url": link, "domain": domain})
-        return {"count": len(domains), "examples": examples}
-    except Exception as exc:
-        print(f"GDELT enrichment unavailable [{topic[:60]}]: {exc}")
-        return {"count": 0, "examples": []}
 
 
-def rank_candidates(items):
-    now = datetime.now(timezone.utc)
-    for item in items:
-        # Repeated appearances across countries are a stronger signal; traffic is retained as context.
-        item["score"] = len(item["regions"]) * 10 + min(len(item["traffic"]), 5)
-        item["fingerprint"] = hashlib.sha256(item["key"].encode("utf-8")).hexdigest()
-        item["observed_at_utc"] = now.strftime("%Y-%m-%d %H:%M UTC")
-    return sorted(items, key=lambda x: (x["score"], len(x["regions"])), reverse=True)
+def parse_gdelt_time(value):
+    value = str(value or "").strip()
+    if not value:
+        return None
+    for pattern in ("%Y%m%dT%H%M%SZ", "%Y-%m-%dT%H:%M:%SZ"):
+        try:
+            return datetime.strptime(value, pattern).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
 
 
-def select_and_write(candidates):
-    compact = [{
-        "topic": x["topic"], "regions": x["regions"],
-        "traffic_signals": x["traffic"][:4],
-        "google_trends_links": x["trend_links"][:2],
-        "news_coverage_domains_last_24h": x["gdelt"]["count"],
-        "news_examples": x["gdelt"]["examples"][:2],
-    } for x in candidates]
+def wait_for_gdelt_slot():
+    global _LAST_GDELT_REQUEST
+    elapsed = time.monotonic() - _LAST_GDELT_REQUEST
+    if _LAST_GDELT_REQUEST and elapsed < GDELT_MIN_INTERVAL:
+        time.sleep(GDELT_MIN_INTERVAL - elapsed)
+    _LAST_GDELT_REQUEST = time.monotonic()
+
+
+def fetch_gdelt_query(label, query):
+    params = {
+        "query": query,
+        "mode": "ArtList",
+        "format": "json",
+        "maxrecords": MAX_ARTICLES_PER_QUERY,
+        "timespan": "24h",
+        "sort": "DateDesc",
+    }
+    for attempt in range(2):
+        wait_for_gdelt_slot()
+        try:
+            response = requests.get(
+                GDELT_URL,
+                params=params,
+                headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+                timeout=REQUEST_TIMEOUT,
+            )
+            if response.status_code == 429 and attempt == 0:
+                log.warning("GDELT rate limit for %s; backing off once.", label)
+                time.sleep(6.0)
+                continue
+            response.raise_for_status()
+            content_type = response.headers.get("Content-Type", "").lower()
+            if "json" not in content_type:
+                log.warning("GDELT returned non-JSON content for %s; skipping.", label)
+                return []
+            payload = response.json()
+            if not isinstance(payload, dict):
+                return []
+            articles = payload.get("articles", [])
+            if not isinstance(articles, list):
+                return []
+            now = datetime.now(timezone.utc)
+            cleaned = []
+            for article in articles:
+                if not isinstance(article, dict):
+                    continue
+                title = clean(article.get("title"))
+                link = str(article.get("url") or "").strip()
+                domain = clean(article.get("domain")).lower().removeprefix("www.")
+                seen_at = parse_gdelt_time(article.get("seendate"))
+                if not title or not link.startswith("https://") or not domain or not seen_at:
+                    continue
+                if seen_at > now + timedelta(minutes=10) or now - seen_at > timedelta(hours=30):
+                    continue
+                cleaned.append({
+                    "title": title[:240],
+                    "url": link,
+                    "domain": domain,
+                    "seen_at": seen_at.isoformat(),
+                    "query_category": label,
+                })
+            return cleaned
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            log.warning("GDELT query failed for %s: %s", label, exc)
+            return []
+    return []
+
+
+def title_tokens(title):
+    tokens = set(re.findall(r"[a-z][a-z0-9]{2,}", clean(title).lower()))
+    return tokens - STOPWORDS
+
+
+def article_similarity(left, right):
+    a = title_tokens(left)
+    b = title_tokens(right)
+    if not a or not b:
+        return 0.0
+    jaccard = len(a & b) / len(a | b)
+    sequence = SequenceMatcher(None, clean(left).lower(), clean(right).lower()).ratio()
+    return max(jaccard, sequence * 0.75)
+
+
+def cluster_gdelt_articles(articles):
+    groups = []
+    for article in articles:
+        best_group = None
+        best_score = 0.0
+        for group in groups:
+            score = max(article_similarity(article["title"], item["title"]) for item in group["articles"])
+            if score > best_score:
+                best_score = score
+                best_group = group
+        if best_group is not None and best_score >= 0.42:
+            best_group["articles"].append(article)
+        else:
+            groups.append({"articles": [article]})
+
+    candidates = []
+    for group in groups:
+        unique_domains = sorted({item["domain"] for item in group["articles"]})
+        if len(unique_domains) < 2:
+            continue
+        newest = max(group["articles"], key=lambda item: item["seen_at"])
+        fingerprint = hashlib.sha256(
+            re.sub(r"\W+", " ", newest["title"].lower()).encode("utf-8")
+        ).hexdigest()
+        candidates.append({
+            "topic": newest["title"],
+            "category": newest["query_category"],
+            "domains": unique_domains,
+            "articles": sorted(group["articles"], key=lambda item: item["seen_at"], reverse=True)[:5],
+            "fingerprint": fingerprint,
+            "score": len(unique_domains) * 10 + min(len(group["articles"]), 8) * 2,
+        })
+    return sorted(candidates, key=lambda item: (item["score"], len(item["domains"])), reverse=True)
+
+
+def discover_gdelt_trends():
+    all_articles = []
+    for label, query in GDELT_QUERIES:
+        all_articles.extend(fetch_gdelt_query(label, query))
+    # De-duplicate syndicated copies from the same URL before clustering.
+    unique = {}
+    for article in all_articles:
+        unique.setdefault(article["url"], article)
+    candidates = cluster_gdelt_articles(list(unique.values()))
+    log.info("GDELT discovery: %d recent articles, %d multi-domain topic clusters.", len(unique), len(candidates))
+    return candidates[:MAX_CANDIDATES]
+
+
+def summarize_candidates(candidates):
+    if not candidates:
+        return []
+    if not GEMINI_KEY:
+        raise RuntimeError("GEMINI_API_KEY is required to prepare Persian editorial captions.")
+    compact = []
+    for index, candidate in enumerate(candidates):
+        compact.append({
+            "candidate_id": index,
+            "source_headline": candidate["topic"],
+            "category": candidate["category"],
+            "independent_domains": candidate["domains"],
+            "other_headlines": [item["title"] for item in candidate["articles"][1:4]],
+        })
     prompt = (
-        "You are the careful Persian trend editor for Status Room, an Iranian family-friendly news channel. "
-        "Select at most 3 genuinely useful current trend topics from the supplied signals. The output field topic MUST copy the candidate topic text verbatim, character-for-character; never translate or paraphrase it. "
-        "Do not invent facts, causes, numbers, quotes, virality, or context. A Google Trends item is a search-interest "
-        "signal, NOT proof of a viral event or public opinion. If GDELT coverage is zero, keep the wording explicitly "
-        "about search interest only. Prefer cross-region signals, meaningful public-interest topics, technology, "
-        "science, sport, culture and safe entertainment. Exclude sexual content, gambling, drugs, graphic violence, "
-        "hate, harassment, dangerous challenges and unverified political/military claims. "
-        "Return JSON only: {items:[{topic, category, headline_fa, explanation_fa, signal_fa, caution_fa}]}. "
-        "category must be one of: جهان، فناوری، ورزش، علم، فرهنگ، سرگرمی، اقتصاد. "
-        "headline_fa max 90 Persian characters; explanation_fa 1-2 concise sentences and only what the signals support; "
-        "signal_fa must name the countries and say this is a Google search trend; caution_fa may be empty. "
-        "If no candidate is safe and meaningful, return an empty items array.\n\n"
+        "You are the cautious Persian visual-trend editor for Status Room. "
+        "Use only the supplied candidate headlines. A cluster means multiple domains covered similar wording; "
+        "it is not proof that the underlying claim is true. Do not invent facts, numbers, causes, quotes, "
+        "locations, identities, virality or public opinion. Exclude match listings, isolated names, generic "
+        "phrases, rumors, political/military allegations, graphic events, gambling, drugs, sexual material, "
+        "hate, harassment and dangerous challenges. Prefer a clear public-interest subject suitable for a "
+        "family-friendly image card. Return at most 3 items and only candidate_id values present in the input. "
+        "Return JSON only: {items:[{candidate_id,headline_fa,explanation_fa,caution_fa}]}. "
+        "headline_fa must be a concise Persian rendering of the supplied source headline, not a new claim. "
+        "explanation_fa must say this is a topic receiving coverage across multiple media outlets, and avoid "
+        "asserting unverified details. caution_fa should be empty unless the source headlines themselves show "
+        "uncertainty. If no topic is safe and meaningful, return {items:[]}.\n\n"
         + json.dumps(compact, ensure_ascii=False)
     )
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    endpoint = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        + GEMINI_MODEL + ":generateContent"
+    )
     response = requests.post(
-        url,
+        endpoint,
         headers={"x-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
         json={
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {
-                "temperature": 0.15, "responseMimeType": "application/json",
-                "maxOutputTokens": 1800,
+                "temperature": 0.1,
+                "responseMimeType": "application/json",
+                "maxOutputTokens": 1500,
             },
         },
-        timeout=60,
+        timeout=45,
     )
     if not response.ok:
-        try:
-            detail = response.json().get("error", {}).get("message", "Gemini request failed")
-        except (ValueError, AttributeError):
-            detail = "Gemini request failed"
-        raise RuntimeError(f"Gemini API error ({response.status_code}): {str(detail)[:400]}")
+        raise RuntimeError("Gemini editorial request failed with HTTP " + str(response.status_code))
     payload = response.json()
     parts = payload.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-    raw = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+    raw = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
     if not raw.strip():
-        raise RuntimeError("Gemini returned an empty trend selection.")
+        raise RuntimeError("Gemini returned an empty editorial selection.")
     parsed = json.loads(raw)
-    allowed = {"جهان", "فناوری", "ورزش", "علم", "فرهنگ", "سرگرمی", "اقتصاد"}
-    result = []
-    for item in parsed.get("items", [])[:MAX_POSTS]:
+    selected = []
+    for item in parsed.get("items", [])[:MAX_DAILY_IMAGES]:
         if not isinstance(item, dict):
             continue
-        category = item.get("category", "جهان")
-        if category not in allowed:
-            category = "جهان"
-        normalized = {
-            "topic": clean(item.get("topic", ""))[:180],
-            "category": category,
-            "headline_fa": clean(item.get("headline_fa", ""))[:180],
-            "explanation_fa": clean(item.get("explanation_fa", ""))[:700],
-            "signal_fa": clean(item.get("signal_fa", ""))[:400],
-            "caution_fa": clean(item.get("caution_fa", ""))[:300],
-        }
-        if normalized["topic"] and normalized["headline_fa"] and normalized["explanation_fa"]:
-            result.append(normalized)
-    return result
+        try:
+            candidate_id = int(item.get("candidate_id"))
+        except (TypeError, ValueError):
+            continue
+        if candidate_id < 0 or candidate_id >= len(candidates):
+            continue
+        headline = clean(item.get("headline_fa"))[:150]
+        explanation = clean(item.get("explanation_fa"))[:500]
+        caution = clean(item.get("caution_fa"))[:220]
+        if not headline or not explanation:
+            continue
+        candidate = dict(candidates[candidate_id])
+        candidate.update({
+            "headline_fa": headline,
+            "explanation_fa": explanation,
+            "caution_fa": caution,
+        })
+        selected.append(candidate)
+    return selected
 
 
-def build_post(item, source, coverage):
-    examples = coverage.get("examples", [])
-    links = []
-    for example in examples[:2]:
-        links.append(
-            '• <a href="' + html.escape(example["url"], quote=True) + '">' +
-            html.escape(example["title"]) + '</a>'
+def image_is_relevant(image, topic):
+    title_and_tags = clean(image.get("title", "")) + " " + " ".join(
+        clean(tag.get("name", "") if isinstance(tag, dict) else tag)
+        for tag in (image.get("tags") or [])
+    )
+    topic_words = title_tokens(topic)
+    image_words = title_tokens(title_and_tags)
+    if not topic_words or not image_words:
+        return False
+    needed = 1 if len(topic_words) <= 3 else 2
+    return len(topic_words & image_words) >= needed
+
+
+def usable_openverse_image(image, topic):
+    if not isinstance(image, dict):
+        return False
+    license_code = str(image.get("license") or "").lower().strip()
+    license_url = str(image.get("license_url") or "").strip()
+    image_url = str(image.get("url") or "").strip()
+    landing_url = str(image.get("foreign_landing_url") or "").strip()
+    filetype = str(image.get("filetype") or "").lower().strip()
+    if license_code not in ALLOWED_LICENSES:
+        return False
+    if not license_url.startswith("https://") or not landing_url.startswith("https://"):
+        return False
+    if not image_url.startswith("https://") or filetype not in ALLOWED_FILETYPES:
+        return False
+    if image.get("mature") is True:
+        return False
+    try:
+        width = int(image.get("width") or 0)
+        height = int(image.get("height") or 0)
+    except (TypeError, ValueError):
+        return False
+    if max(width, height) < 600 or min(width, height) < 300:
+        return False
+    return image_is_relevant(image, topic)
+
+
+def search_openverse_image(topic):
+    params = {
+        "q": topic[:160],
+        "license": "cc0,by,by-sa",
+        "license_type": "commercial",
+        "exclude_sensitive": "true",
+        "page_size": 20,
+    }
+    try:
+        response = requests.get(
+            OPENVERSE_URL,
+            params=params,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=REQUEST_TIMEOUT,
         )
-    trend_link = source.get("trend_links", [])
-    if trend_link:
-        links.append('• <a href="' + html.escape(trend_link[0], quote=True) + '">نمای سیگنال در Google Trends</a>')
-    coverage_line = (
-        f"📰 بازتاب خبری در GDELT: {coverage.get('count', 0)} دامنه در ۲۴ ساعت اخیر"
-        if coverage.get("count", 0) else
-        "📰 بازتاب خبری مستقل در بررسی GDELT پیدا نشد؛ این مورد صرفاً یک سیگنال جست‌وجو است."
-    )
-    caution = ("\n\n⚠️ " + html.escape(item["caution_fa"])) if item.get("caution_fa") else ""
-    source_links = "\n".join(links) if links else "پیوند خبر مکمل در دسترس نبود."
+        response.raise_for_status()
+        payload = response.json()
+        results = payload.get("results", []) if isinstance(payload, dict) else []
+        for image in results:
+            if usable_openverse_image(image, topic):
+                return image
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        log.warning("Openverse search failed for topic %s: %s", topic[:70], exc)
+    return None
+
+
+def download_openverse_image(image):
+    url = image["url"]
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        content_type = response.headers.get("Content-Type", "").split(";")[0].lower()
+        if content_type not in {"image/jpeg", "image/png"}:
+            log.warning("Rejected image with unsupported MIME type: %s", content_type)
+            return None
+        content = response.content
+        if not content or len(content) > MAX_IMAGE_BYTES:
+            log.warning("Rejected image with invalid size.")
+            return None
+        if content_type == "image/jpeg" and not content.startswith(b"\xff\xd8\xff"):
+            return None
+        if content_type == "image/png" and not content.startswith(b"\x89PNG\r\n\x1a\n"):
+            return None
+        extension = "jpg" if content_type == "image/jpeg" else "png"
+        return (extension, content, content_type)
+    except requests.RequestException as exc:
+        log.warning("Could not download Openverse image: %s", exc)
+        return None
+
+
+def license_label(image):
+    code = str(image.get("license") or "").lower()
+    version = clean(image.get("license_version") or "")
+    labels = {"cc0": "CC0", "by": "CC BY", "by-sa": "CC BY-SA"}
+    return labels.get(code, code.upper()) + ((" " + version) if version else "")
+
+
+def build_caption(item, image):
+    article_links = []
+    for article in item.get("articles", [])[:2]:
+        article_links.append(
+            '<a href="' + html.escape(article["url"], quote=True) + '">' +
+            html.escape(article["domain"]) + "</a>"
+        )
+    creator = clean(image.get("creator") or "")
+    creator_url = str(image.get("creator_url") or "").strip()
+    if creator and creator_url.startswith("https://"):
+        creator_text = '<a href="' + html.escape(creator_url, quote=True) + '">' + html.escape(creator) + "</a>"
+    elif creator:
+        creator_text = html.escape(creator)
+    else:
+        creator_text = "در اطلاعات Openverse درج نشده"
+    license_url = html.escape(image["license_url"], quote=True)
+    landing_url = html.escape(image["foreign_landing_url"], quote=True)
+    caution = ("\\n\\n⚠️ " + html.escape(item["caution_fa"])) if item.get("caution_fa") else ""
     return (
-        "🌐 <b>رادار ترند جهانی | اتاق وضعیت</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        f"📌 <b>{html.escape(item['headline_fa'])}</b>\n"
-        f"🏷 دسته: {html.escape(item['category'])}\n\n"
-        f"{html.escape(item['explanation_fa'])}\n\n"
-        f"📈 {html.escape(item['signal_fa'])}\n"
-        f"{coverage_line}{caution}\n\n"
-        "🔎 <b>منابع و پیوندها</b>\n"
-        f"{source_links}\n\n"
-        "🧾 <i>روش‌شناسی: Google Trends برای تشخیص افزایش جست‌وجو؛ GDELT برای سنجش بازتاب خبری. "
-        "ترند بودن به‌تنهایی به معنی صحت ادعا یا محبوبیت عمومی نیست.</i>\n"
+        "🌐 <b>ترند تصویری | اتاق وضعیت</b>\\n"
+        "━━━━━━━━━━━━━━━━━━\\n"
+        f"📌 <b>{html.escape(item['headline_fa'])}</b>\\n\\n"
+        f"{html.escape(item['explanation_fa'])}\\n"
+        f"📊 بازتاب: {len(item.get('domains', []))} دامنه خبری در GDELT طی ۲۴ ساعت اخیر"
+        f"{caution}\\n\\n"
+        "🖼 <b>تصویر آرشیوی/تزئینی</b> — این تصویر عکس واقعی رویداد روز نیست.\\n"
+        f"عنوان تصویر: <a href=\\"{landing_url}\\">{html.escape(clean(image.get('title') or 'مشاهده تصویر'))}</a>\\n"
+        f"خالق: {creator_text}\\n"
+        f"مجوز: <a href=\\"{license_url}\\">{html.escape(license_label(image))}</a>\\n"
+        f"منابع پوشش خبری: {' | '.join(article_links) if article_links else 'پیوند مکمل در دسترس نیست'}\\n\\n"
+        "🧾 <i>ترند بودن، تأیید صحت ادعا نیست؛ تصویر صرفاً برای توضیح موضوع انتخاب شده است.</i>\\n"
         "— <b>اطلس</b> | رادار جهانی اتاق وضعیت"
-        + channel_footer()
     )
 
 
-def publish(message):
+def already_posted(state, today, item, image):
+    entries = state.get("images_posted", [])
+    topic_key = today + ":" + item["fingerprint"]
+    image_id = str(image.get("id") or "")
+    if topic_key in {entry.get("topic_key") for entry in entries if isinstance(entry, dict)}:
+        return True
+    if image_id and image_id in {entry.get("image_id") for entry in entries if isinstance(entry, dict)}:
+        return True
+    return False
+
+
+def daily_image_count(state, today):
+    return sum(
+        1 for entry in state.get("images_posted", [])
+        if isinstance(entry, dict) and entry.get("date") == today
+    )
+
+
+def send_photo(image_payload, caption):
+    if not BOT_TOKEN or not CHANNEL:
+        raise RuntimeError("Telegram credentials are missing; refusing to publish.")
+    extension, content, mime_type = image_payload
     response = requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        json={
-            "chat_id": CHANNEL, "text": message, "parse_mode": "HTML",
-            "disable_web_page_preview": False,
-        }, timeout=35,
+        "https://api.telegram.org/bot" + BOT_TOKEN + "/sendPhoto",
+        data={"chat_id": CHANNEL, "caption": caption, "parse_mode": "HTML"},
+        files={"photo": ("status-room-trend." + extension, io.BytesIO(content), mime_type)},
+        timeout=45,
     )
     try:
         payload = response.json()
     except ValueError:
-        payload = {"description": response.text[:500]}
+        payload = {"description": "Telegram returned a non-JSON response."}
     if not response.ok or not payload.get("ok"):
-        raise RuntimeError(f"Telegram API error ({response.status_code}): {payload.get('description', payload)}")
+        raise RuntimeError("Telegram photo publishing failed: " + clean(payload.get("description", "unknown error"))[:250])
     return payload.get("result", {}).get("message_id")
 
 
-def main():
-    if not BOT_TOKEN or not CHANNEL or not GEMINI_KEY:
-        raise SystemExit("Missing required Telegram or Gemini secrets.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Status Room GDELT/Openverse image trend radar")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true", help="collect and validate content without Telegram publishing")
+    mode.add_argument("--publish", action="store_true", help="allow Telegram publishing")
+    args = parser.parse_args(argv)
+    dry_run = args.dry_run or (not args.publish and os.getenv("TREND_DRY_RUN", "1").lower() not in {"0", "false", "no"})
+
     state = load_state()
-    trends = rank_candidates(fetch_google_trends())
-    if not trends:
-        print("No Google Trends items available; nothing published.")
-        return
-    # Enrich a small top set to keep free public endpoints within reasonable use.
-    candidates = []
-    for item in trends[:MAX_CANDIDATES]:
-        item["gdelt"] = gdelt_coverage(item["topic"])
-        candidates.append(item)
     today = datetime.now(TEHRAN).date().isoformat()
-    already = set(state.get("posted", []))
-    fresh = [x for x in candidates if f"{today}:{x['fingerprint']}" not in already]
-    if not fresh:
-        print("All current trend candidates were already processed today.")
+    posted_today = daily_image_count(state, today)
+    remaining = max(0, MAX_DAILY_IMAGES - posted_today)
+    if remaining == 0:
+        log.info("Daily image cap reached (%d); no more images will be published today.", MAX_DAILY_IMAGES)
         return
-    selected = select_and_write(fresh[:12])
+
+    candidates = discover_gdelt_trends()
+    if not candidates:
+        log.info("No multi-domain, recent GDELT trend cluster passed the discovery filter.")
+        return
+
+    selected = summarize_candidates(candidates)
     if not selected:
-        print("Editorial filter selected no safe, meaningful trend topics.")
+        log.info("Editorial filter found no safe, useful image topics.")
         return
-    by_topic = {x["topic"].lower(): x for x in fresh}
+
     published = 0
-    for item in selected[:MAX_POSTS]:
-        source = by_topic.get(item["topic"].lower())
-        if source is None:
-            # Match the normalized Google Trends topic without trusting generated claims.
-            source = next((x for x in fresh if item["topic"].lower() in x["topic"].lower()
-                           or x["topic"].lower() in item["topic"].lower()), None)
-        if source is None:
-            print("Skipped AI-selected topic not found in source signals: " + item["topic"])
+    seen_images = {
+        entry.get("image_id")
+        for entry in state.get("images_posted", [])
+        if isinstance(entry, dict) and entry.get("image_id")
+    }
+    for item in selected:
+        if published >= remaining:
+            break
+        if already_posted(state, today, item, {"id": ""}):
+            log.info("Skipped already-posted topic: %s", item["topic"])
             continue
-        message_id = publish(build_post(item, source, source["gdelt"]))
-        already.add(f"{today}:{source['fingerprint']}")
+        image = search_openverse_image(item["topic"])
+        if not image:
+            log.info("No clearly licensed and relevant Openverse image; skipped: %s", item["topic"])
+            continue
+        if image.get("id") in seen_images:
+            log.info("Skipped previously used Openverse image: %s", image.get("id"))
+            continue
+        payload = download_openverse_image(image)
+        if not payload:
+            log.info("Image download/format validation failed; skipped: %s", item["topic"])
+            continue
+        caption = build_caption(item, image)
+        if dry_run:
+            log.info(
+                "DRY-RUN only: topic=%s | image_id=%s | license=%s | creator=%s | source=%s",
+                item["topic"], image.get("id"), license_label(image),
+                clean(image.get("creator") or "not supplied"),
+                image.get("foreign_landing_url"),
+            )
+            published += 1
+            continue
+
+        message_id = send_photo(payload, caption)
+        entry = {
+            "date": today,
+            "topic_key": today + ":" + item["fingerprint"],
+            "topic": item["topic"][:180],
+            "image_id": str(image.get("id") or ""),
+            "message_id": message_id,
+            "license": license_label(image),
+            "source_url": image.get("foreign_landing_url"),
+        }
+        state.setdefault("images_posted", []).append(entry)
+        seen_images.add(entry["image_id"])
         published += 1
-        print(f"Published trend [{item['category']}] {source['topic']} message_id={message_id}")
-    state["posted"] = list(already)
-    state["last_run_tehran"] = datetime.now(TEHRAN).isoformat()
-    save_state(state)
-    print(f"Published {published} trend post(s).")
+        log.info("Published licensed archive image for topic %s; message_id=%s", item["topic"], message_id)
+
+    if dry_run:
+        log.info("Dry-run complete: %d candidate image(s) passed; no Telegram message was sent and state was not changed.", published)
+    elif published:
+        state["last_image_run_tehran"] = datetime.now(TEHRAN).isoformat()
+        save_state(state)
+        log.info("Published %d image post(s); daily cap is %d.", published, MAX_DAILY_IMAGES)
+    else:
+        log.info("No image passed all relevance, license, freshness and safety checks; nothing published.")
 
 
 if __name__ == "__main__":
