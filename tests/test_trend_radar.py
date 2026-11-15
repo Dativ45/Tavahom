@@ -1,4 +1,8 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 import trend_radar
 
@@ -49,6 +53,11 @@ class TrendRadarTests(unittest.TestCase):
         self.assertFalse(trend_radar.usable_openverse_image(image, "NASA lunar mission"))
         image["license"] = "by"
         image["license_url"] = ""
+        self.assertFalse(trend_radar.usable_openverse_image(image, "NASA lunar mission"))
+        image["license_url"] = "https://example.com/licenses/by/4.0/"
+        self.assertFalse(trend_radar.usable_openverse_image(image, "NASA lunar mission"))
+        image["license_url"] = "https://creativecommons.org/licenses/by/4.0/"
+        image["id"] = ""
         self.assertFalse(trend_radar.usable_openverse_image(image, "NASA lunar mission"))
 
     def test_accepts_relevant_cc_by_image_with_source_and_license_links(self):
@@ -122,6 +131,28 @@ class TrendRadarTests(unittest.TestCase):
             ]
         }
         self.assertEqual(trend_radar.daily_image_count(state, "2026-11-15"), 2)
+
+    def test_load_state_migrates_legacy_posts_and_preserves_daily_cap(self):
+        legacy_key = "2026-11-15:" + ("a" * 64)
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "trend_state.json"
+            state_path.write_text(
+                json.dumps({"posted": [legacy_key, "2026-11-14:" + ("b" * 64)]}),
+                encoding="utf-8",
+            )
+            with patch.object(trend_radar, "STATE_FILE", state_path):
+                state = trend_radar.load_state()
+        self.assertEqual(trend_radar.daily_image_count(state, "2026-11-15"), 1)
+        self.assertTrue(
+            trend_radar.already_posted(
+                state, "2026-11-15", {"fingerprint": "a" * 64}, {"id": ""}
+            )
+        )
+
+    def test_broad_discovery_uses_one_gdelt_request(self):
+        self.assertEqual(len(trend_radar.GDELT_QUERIES), 1)
+        self.assertGreaterEqual(trend_radar.MAX_ARTICLES_PER_QUERY, 100)
+        self.assertEqual(trend_radar.infer_category("AI semiconductor research"), "فناوری")
 
     def test_topic_duplicate_is_detected(self):
         state = {
