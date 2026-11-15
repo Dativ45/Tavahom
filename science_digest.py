@@ -174,7 +174,7 @@ def main():
     if not items:
         print("No new science stories.")
         return
-    items.sort(key=lambda x: x["timestamp"], reverse=True)
+    # Prefer newsroom/research-editorial reporting; use preprints only when no editorial item is available.\n    items.sort(key=lambda x: (x["kind"] == "preprint", -x["timestamp"]))
     item = items[0]
     title_fa, summary_fa, field = translate(item)
     message_id = post(item, title_fa, summary_fa, field)
