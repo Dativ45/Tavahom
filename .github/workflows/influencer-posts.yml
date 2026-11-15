@@ -1,0 +1,51 @@
+name: Status Room global influencer posts
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Separate best-effort polling; never blocks the main news publisher.
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: status-room-influencer-posts
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Validate influencer publisher
+        run: python -m py_compile influencer_posts.py
+      - name: Fetch, translate and publish one new influencer post
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.1-flash-lite
+        run: python influencer_posts.py
+      - name: Persist influencer deduplication state
+        run: |
+          git config user.name "status-room-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add influencer_state.json
+          git diff --cached --quiet || git commit -m "Update influencer post state"
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            if git push; then
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; retrying after syncing with origin."
+            sleep 2
+          done
+          echo "Could not persist influencer state after 3 attempts."
+          exit 1
