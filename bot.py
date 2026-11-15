@@ -19,6 +19,7 @@ STATE_FILE = Path("state.json")
 CONFIG_FILE = Path("editorial_config.json")
 MAX_POSTS_PER_RUN = 3  # Channel-local archive index verified
 MAX_SEEN = 5000
+MAX_STORY_AGE_SECONDS = 72 * 60 * 60
 
 def channel_footer():
     """Return a clickable channel join/follow link when Telegram exposes one."""
@@ -66,6 +67,10 @@ FEEDS = [
     ("The Guardian World", "https://www.theguardian.com/world/rss", "media"),
     ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml", "media"),
     ("France 24", "https://www.france24.com/en/rss", "media"),
+    # Reuters has no maintained official public RSS; this Google News feed is source-filtered.
+    ("Reuters (via Google News)", "https://news.google.com/rss/search?q=when:24h+site:reuters.com&ceid=US:en&hl=en-US&gl=US", "media"),
+    # AP's legacy apnews.com RSS endpoints are unreliable; use its verified Flipboard publisher feed.
+    ("Associated Press (Flipboard)", "https://flipboard.com/@associatedpress/top-stories-u7govdf1z.rss", "media"),
     ("UN News", "https://news.un.org/feed/subscribe/en/news/all/rss.xml", "official"),
     ("WHO", "https://www.who.int/rss-feeds/news-english.xml", "official"),
     ("NASA", "https://www.nasa.gov/feed/", "official"),
@@ -118,7 +123,30 @@ def fetch_items():
                 if not title or not link.startswith("http"):
                     continue
                 published = entry.get("published_parsed") or entry.get("updated_parsed")
-                published_ts = int(time.mktime(published)) if published else 0
+                published_ts = int(calendar.timegm(published)) if published else 0
+                media_url = ""
+                for media in entry.get("media_content", []) or []:
+                    candidate = media.get("url", "")
+                    if candidate.startswith("https://") and (media.get("medium") == "image" or re.search(r"\\.(jpg|jpeg|png|webp)(?:\\?|$)", candidate, re.I)):
+                        media_url = candidate
+                        break
+                if not media_url:
+                    for media in entry.get("media_thumbnail", []) or []:
+                        candidate = media.get("url", "")
+                        if candidate.startswith("https://"):
+                            media_url = candidate
+                            break
+                if not media_url:
+                    for enclosure in entry.get("enclosures", []) or []:
+                        candidate = enclosure.get("href") or enclosure.get("url", "")
+                        mime = enclosure.get("type", "")
+                        if candidate.startswith("https://") and mime.startswith("image/"):
+                            media_url = candidate
+                            break
+                if not media_url:
+                    match = re.search(r'<img[^>]+src=["\\'](https://[^"\\']+)["\\']', entry.get("summary", ""), re.I)
+                    if match:
+                        media_url = html.unescape(match.group(1))
                 key = hashlib.sha256((title + link).encode("utf-8")).hexdigest()
                 items.append({
                     "source": source,
@@ -127,6 +155,7 @@ def fetch_items():
                     "title": title[:500],
                     "link": link,
                     "summary": summary[:2600],
+                    "image_url": media_url,
                     "published_ts": published_ts,
                     "key": key,
                 })
@@ -247,6 +276,29 @@ def build_post(item, translated, source_count):
         + channel_footer()
     )
 
+def publish_story(item, message):
+    image_url = item.get("image_url", "")
+    if image_url.startswith("https://"):
+        try:
+            photo_response = requests.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                data={
+                    "chat_id": CHANNEL,
+                    "photo": image_url,
+                    "caption": "🖼 تصویر همراه خبر از خوراک منبع؛ متن کامل و پیوند اصلی در پیام بعدی.",
+                },
+                timeout=35,
+            )
+            photo_payload = photo_response.json()
+            if not photo_response.ok or not photo_payload.get("ok"):
+                print(f"Image delivery failed; falling back to text only: {photo_payload.get('description', photo_payload)}")
+            else:
+                print(f"Image delivered for: {item['title'][:120]}")
+        except (requests.RequestException, ValueError) as exc:
+            print(f"Image delivery failed; falling back to text only: {exc}")
+    return publish(message)
+
+
 def publish(message):
     response = requests.post(
         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
@@ -362,7 +414,14 @@ def main():
     ensure_navigation(state)
     seen = set(state.get("seen", []))
     all_items = fetch_items()
-    fresh = [item for item in all_items if item["key"] not in seen]
+    now = int(time.time())
+    fresh = [
+        item for item in all_items
+        if item["key"] not in seen
+        and item.get("published_ts", 0) > 0
+        and now - item["published_ts"] <= MAX_STORY_AGE_SECONDS
+        and item["published_ts"] <= now + 300
+    ]
     if not fresh:
         print("No unseen stories in the available feeds.")
         return
@@ -372,7 +431,7 @@ def main():
     for item in fresh[:MAX_POSTS_PER_RUN]:
         translated = translate_and_classify(item)
         source_count = related_source_count(item, all_items)
-        message_id = publish(build_post(item, translated, source_count))
+        message_id = publish_story(item, build_post(item, translated, source_count))
         category = archive_category_for_desk(translated["desk"])
         if category and message_id:
             state.setdefault("archive", []).append({
