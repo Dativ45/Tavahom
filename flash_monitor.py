@@ -168,16 +168,17 @@ def build_message(item, title_fa, summary_fa, score):
     priority = "🚨 <b>هشدار فوری</b>" if score >= 3 else "🟠 <b>تحول مهم</b>"
     confidence = "بازتاب در چند جست‌وجو؛ تأیید مستقل نشده" if item.get("appearances", 1) >= 2 else "تأیید مستقل نشده"
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"])) if item["published_ts"] else "زمان منبع مشخص نیست"
+    source_link = html.escape(item["link"], quote=True)
     return (
-        "🛰️ <b>اتاق وضعیت | پایش زنده تحولات</b>\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
-        + priority + "\\n"
-        + "⚠️ " + confidence + "\\n\\n"
-        + "🇮🇷 <b>" + html.escape(title_fa) + "</b>\\n"
-        + html.escape(summary_fa) + "\\n\\n"
-        + "🗞 منبع: " + html.escape(item["source"][:100]) + "\\n"
-        + "🕒 زمان انتشار منبع: " + html.escape(published) + "\\n"
-        + "🔗 <a href=\\"{html.escape(item['link'], quote=True)}\\">پیگیری منبع</a>"
+        "🛰️ <b>اتاق وضعیت | پایش زنده تحولات</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        + priority + "\n"
+        + "⚠️ " + confidence + "\n\n"
+        + "🇮🇷 <b>" + html.escape(title_fa) + "</b>\n"
+        + html.escape(summary_fa) + "\n\n"
+        + "🗞 منبع: " + html.escape(item["source"][:100]) + "\n"
+        + "🕒 زمان انتشار منبع: " + html.escape(published) + "\n"
+        + f'🔗 <a href="{source_link}">پیگیری منبع</a>'
     )
 
 def publish(message):
