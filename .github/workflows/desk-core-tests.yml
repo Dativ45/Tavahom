@@ -2,7 +2,7 @@ name: Shared desk core tests
 on:
   push:
     branches: [main, "feature/**"]
-    paths: ["desk_core.py", "tests/test_desk_core.py", ".github/workflows/desk-core-tests.yml", "requirements.txt"]
+    paths: ["desk_core.py", "tech_digest_v2.py", "tests/test_desk_core.py", ".github/workflows/desk-core-tests.yml", "requirements.txt"]
   pull_request:
     paths: ["desk_core.py", "tests/test_desk_core.py", ".github/workflows/desk-core-tests.yml", "requirements.txt"]
   workflow_dispatch:
@@ -17,5 +17,5 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt
-      - run: python -m py_compile desk_core.py
+      - run: python -m py_compile desk_core.py tech_digest_v2.py
       - run: python -m unittest discover -s tests -v
