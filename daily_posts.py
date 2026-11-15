@@ -80,7 +80,7 @@ post = (
 )
 tg = requests.post(
     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-    json={"chat_id": CHANNEL, "text": post, "parse_mode": "HTML", "disable_web_page_preview": True},
+    json={"chat_id": CHANNEL, "text": post, "parse_mode": "HTML", "disable_web_page_preview": False},
     timeout=35,
 )
 result = tg.json()
