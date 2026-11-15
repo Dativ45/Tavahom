@@ -166,7 +166,7 @@ def translate(item):
 
 def build_message(item, title_fa, summary_fa, score):
     priority = "🚨 <b>هشدار فوری</b>" if score >= 3 else "🟠 <b>تحول مهم</b>"
-    confidence = "بازتاب در چند جست‌وجو؛ تأیید مستقل نشده" if item.get("appearances", 1) >= 2 else "تأیید مستقل نشده"
+    confidence = "تأیید مستقل نشده"
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"])) if item["published_ts"] else "زمان منبع مشخص نیست"
     source_link = html.escape(item["link"], quote=True)
     return (
