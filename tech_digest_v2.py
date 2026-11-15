@@ -45,7 +45,7 @@ def collect():
                 if stamp and time.time() - stamp > 72 * 3600:
                     continue
                 item.update(source=source, timestamp=stamp,
-                            legacy_key=_legacy_key(item["title"], item["link"]),
+                            legacy_key=_legacy_key(item["title"], item.get("raw_link", item["link"])),
                             key=item_key(item["title"], item["link"]))
                 items.append(item)
         except Exception as exc:
@@ -155,7 +155,11 @@ def main():
     try:
         if item.get("image"):
             try:
-                result = telegram_send_photo(item["image"], format_photo_caption(item, title_fa, summary_fa, category))
+                photo_caption = format_photo_caption(item, title_fa, summary_fa, category)
+                if len(photo_caption) <= 1024:
+                    result = telegram_send_photo(item["image"], photo_caption)
+                else:
+                    result = telegram_send(message)
             except DeliveryUncertain:
                 raise
             except DeskError:
