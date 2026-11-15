@@ -248,16 +248,17 @@ def build_post(item, translated, source_count):
     status = "⚠️ <b>بازتاب چندمنبعی؛ تأیید مستقل نشده</b>" if source_count >= 2 else "⚠️ <b>تأیید مستقل نشده</b>"
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"])) if item["published_ts"] else "زمان انتشار در خوراک مشخص نیست"
     body = translated["translation_fa"] or translated["summary_fa"] or "جزئیات بیشتری در خوراک منبع موجود نبود."
+    source_link = html.escape(item["link"], quote=True)
     return (
-        "🛰️ <b>اتاق وضعیت | " + html.escape(translated["desk"]) + "</b>\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
-        + status + "\\n\\n"
-        + "<b>" + html.escape(translated["title_fa"][:350]) + "</b>\\n"
-        + html.escape(body[:1500]) + "\\n\\n"
-        + "🗞 منبع: " + html.escape(item["source"]) + "\\n"
-        + tag + "\\n"
-        + f"🕒 زمان منبع: {html.escape(published)}\\n"
-        + f"🔗 <a href=\\"{html.escape(item['link'], quote=True)}\\">مشاهده منبع</a>\\n\\n"
+        "🛰️ <b>اتاق وضعیت | " + html.escape(translated["desk"]) + "</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        + status + "\n\n"
+        + "<b>" + html.escape(translated["title_fa"][:350]) + "</b>\n"
+        + html.escape(body[:1500]) + "\n\n"
+        + "🗞 منبع: " + html.escape(item["source"]) + "\n"
+        + tag + "\n"
+        + f"🕒 زمان منبع: {html.escape(published)}\n"
+        + f'🔗 <a href="{source_link}">مشاهده منبع</a>\n\n'
         + f"— <b>{html.escape(alias)}</b> | دبیر " + html.escape(translated["desk"])
         + channel_footer()
     )
