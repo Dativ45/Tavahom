@@ -71,7 +71,7 @@ def main():
   print("No sufficiently fresh price data; nothing posted.")
   return
  msg="🛰️ <b>اتاق وضعیت | تابلوی بازار</b>\n━━━━━━━━━━━━━━━━━━\n"+"\n\n".join(sections)+"\n\n⚠️ <i>اطلاع‌رسانی، نه توصیه خریدوفروش. داده قدیمی یا نامعتبر منتشر نمی‌شود.</i>\n— <b>تراز</b> | تحریریه اقتصاد"+channel_footer()
- r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":msg,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35); p=r.json()
+ r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":msg,"parse_mode":"HTML","disable_web_page_preview":False},timeout=35); p=r.json()
  if not r.ok or not p.get("ok"): raise SystemExit(p.get("description","Telegram send failed"))
  print("Published market bulletin",p["result"]["message_id"])
 if __name__=="__main__": main()
