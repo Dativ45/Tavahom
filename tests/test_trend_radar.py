@@ -135,5 +135,41 @@ class TrendRadarTests(unittest.TestCase):
         )
 
 
+    def test_rejects_unsafe_family_content(self):
+        unsafe = {
+            "topic": "Breaking shooting incident",
+            "articles": [{"title": "Police investigate shooting"}],
+        }
+        safe = {
+            "topic": "NASA lunar mission",
+            "articles": [{"title": "New lunar mission plans"}],
+        }
+        self.assertFalse(trend_radar.candidate_is_safe(unsafe))
+        self.assertTrue(trend_radar.candidate_is_safe(safe))
+
+    def test_caption_stays_within_telegram_limit(self):
+        item = {
+            "headline_fa": "آغاز مأموریت تازه ماه " * 12,
+            "explanation_fa": "این موضوع در چند رسانه پوشش داده شده است. " * 20,
+            "domains": ["space.example", "science.example"],
+            "articles": [
+                {"url": "https://space.example/story", "domain": "space.example"},
+                {"url": "https://science.example/story", "domain": "science.example"},
+            ],
+            "caution_fa": "توضیح احتیاطی " * 20,
+        }
+        image = {
+            "title": "NASA lunar mission rocket " * 8,
+            "creator": "Jane Creator " * 8,
+            "creator_url": "https://creator.example/profile",
+            "license": "by",
+            "license_version": "4.0",
+            "license_url": "https://creativecommons.org/licenses/by/4.0/",
+            "foreign_landing_url": "https://source.example/image",
+        }
+        caption = trend_radar.build_caption(item, image)
+        self.assertLessEqual(len(caption), 1024)
+
+
 if __name__ == "__main__":
     unittest.main()
