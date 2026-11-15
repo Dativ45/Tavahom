@@ -221,7 +221,7 @@ def candidate_is_safe(candidate):
         [article.get("title", "") for article in candidate.get("articles", [])]
     ).lower()
     return not any(
-        re.search(r"\\b" + re.escape(term) + r"\\b", text)
+        re.search(r"\b" + re.escape(term) + r"\\b", text)
         for term in UNSAFE_TERMS
     )
 
