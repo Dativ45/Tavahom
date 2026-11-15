@@ -128,7 +128,7 @@ def fetch_items():
                 media_url = ""
                 for media in entry.get("media_content", []) or []:
                     candidate = media.get("url", "")
-                    if candidate.startswith("https://") and (media.get("medium") == "image" or re.search(r"\\.(jpg|jpeg|png|webp)(?:\\?|$)", candidate, re.I)):
+                    if candidate.startswith("https://") and (media.get("medium") == "image" or re.search(r"\.(jpg|jpeg|png|webp)(?:\?|$)", candidate, re.I)):
                         media_url = candidate
                         break
                 if not media_url:
