@@ -40,6 +40,12 @@ STOPWORDS = {
     "has", "have", "had", "are", "was", "were", "its", "their", "his",
     "her", "you", "your", "our", "they", "them", "how", "why", "who",
 }
+UNSAFE_TERMS = {
+    "porn", "pornography", "explicit", "nude", "nudity", "casino", "gambling",
+    "cocaine", "heroin", "methamphetamine", "overdose", "suicide", "self-harm",
+    "terrorism", "terrorist", "massacre", "beheading", "rape", "murder",
+    "shooting", "bombing", "missile", "hostage", "graphic", "gore",
+}
 MAX_DAILY_IMAGES = 3
 MAX_ARTICLES_PER_QUERY = 18
 MAX_CANDIDATES = 12
@@ -209,6 +215,17 @@ def cluster_gdelt_articles(articles):
     return sorted(candidates, key=lambda item: (item["score"], len(item["domains"])), reverse=True)
 
 
+def candidate_is_safe(candidate):
+    text = " ".join(
+        [candidate.get("topic", "")] +
+        [article.get("title", "") for article in candidate.get("articles", [])]
+    ).lower()
+    return not any(
+        re.search(r"\\b" + re.escape(term) + r"\\b", text)
+        for term in UNSAFE_TERMS
+    )
+
+
 def discover_gdelt_trends():
     all_articles = []
     for label, query in GDELT_QUERIES:
@@ -217,8 +234,12 @@ def discover_gdelt_trends():
     unique = {}
     for article in all_articles:
         unique.setdefault(article["url"], article)
-    candidates = cluster_gdelt_articles(list(unique.values()))
-    log.info("GDELT discovery: %d recent articles, %d multi-domain topic clusters.", len(unique), len(candidates))
+    clustered = cluster_gdelt_articles(list(unique.values()))
+    candidates = [item for item in clustered if candidate_is_safe(item)]
+    log.info(
+        "GDELT discovery: %d recent articles, %d multi-domain clusters, %d family-safe candidates.",
+        len(unique), len(clustered), len(candidates),
+    )
     return candidates[:MAX_CANDIDATES]
 
 
@@ -406,9 +427,9 @@ def build_caption(item, image):
     for article in item.get("articles", [])[:2]:
         article_links.append(
             '<a href="' + html.escape(article["url"], quote=True) + '">' +
-            html.escape(article["domain"]) + "</a>"
+            html.escape(article["domain"][:70]) + "</a>"
         )
-    creator = clean(image.get("creator") or "")
+    creator = clean(image.get("creator") or "")[:60]
     creator_url = str(image.get("creator_url") or "").strip()
     if creator and creator_url.startswith("https://"):
         creator_text = '<a href="' + html.escape(creator_url, quote=True) + '">' + html.escape(creator) + "</a>"
@@ -418,23 +439,44 @@ def build_caption(item, image):
         creator_text = "در اطلاعات Openverse درج نشده"
     license_url = html.escape(image["license_url"], quote=True)
     landing_url = html.escape(image["foreign_landing_url"], quote=True)
-    caution = ("\\n\\n⚠️ " + html.escape(item["caution_fa"])) if item.get("caution_fa") else ""
-    return (
-        "🌐 <b>ترند تصویری | اتاق وضعیت</b>\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
-        f"📌 <b>{html.escape(item['headline_fa'])}</b>\\n\\n"
-        f"{html.escape(item['explanation_fa'])}\\n"
+    headline = html.escape(clean(item["headline_fa"])[:110])
+    explanation = html.escape(clean(item["explanation_fa"])[:260])
+    image_title = html.escape(clean(image.get("title") or "مشاهده تصویر")[:90])
+    caution_text = clean(item.get("caution_fa") or "")[:100]
+    caution = ("\n\n⚠️ " + html.escape(caution_text)) if caution_text else ""
+    caption = (
+        "🌐 <b>ترند تصویری | اتاق وضعیت</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"📌 <b>{headline}</b>\n\n"
+        f"{explanation}\n"
         f"📊 بازتاب: {len(item.get('domains', []))} دامنه خبری در GDELT طی ۲۴ ساعت اخیر"
-        f"{caution}\\n\\n"
-        "🖼 <b>تصویر آرشیوی/تزئینی</b> — این تصویر عکس واقعی رویداد روز نیست.\\n"
-        f'عنوان تصویر: <a href="{landing_url}">{html.escape(clean(image.get("title") or "مشاهده تصویر"))}</a>\n'
-        f"خالق: {creator_text}\\n"
-        f'مجوز: <a href="{license_url}">{html.escape(license_label(image))}</a>\n'
-        f"منابع پوشش خبری: {' | '.join(article_links) if article_links else 'پیوند مکمل در دسترس نیست'}\\n\\n"
-        "🧾 <i>ترند بودن، تأیید صحت ادعا نیست؛ تصویر صرفاً برای توضیح موضوع انتخاب شده است.</i>\\n"
+        f"{caution}\n\n"
+        "🖼 <b>تصویر آرشیوی/تزئینی</b> — این تصویر عکس واقعی رویداد روز نیست.\n"
+        f"عنوان تصویر: <a href=\"{landing_url}\">{image_title}</a>\n"
+        f"خالق: {creator_text}\n"
+        f"مجوز: <a href=\"{license_url}\">{html.escape(license_label(image))}</a>\n"
+        f"منابع پوشش خبری: {' | '.join(article_links[:2]) if article_links else 'پیوند مکمل در دسترس نیست'}\n\n"
+        "🧾 <i>ترند بودن، تأیید صحت ادعا نیست؛ تصویر صرفاً برای توضیح موضوع انتخاب شده است.</i>\n"
         "— <b>اطلس</b> | رادار جهانی اتاق وضعیت"
     )
-
+    if len(caption) > 1000:
+        explanation = html.escape(clean(item["explanation_fa"])[:150])
+        caption = (
+            "🌐 <b>ترند تصویری | اتاق وضعیت</b>\n"
+            "━━━━━━━━━━━━━━━━━━\n"
+            f"📌 <b>{headline[:100]}</b>\n\n"
+            f"{explanation}\n"
+            f"📊 بازتاب: {len(item.get('domains', []))} دامنه خبری در GDELT طی ۲۴ ساعت اخیر\n\n"
+            "🖼 <b>تصویر آرشیوی/تزئینی</b> — عکس واقعی رویداد روز نیست.\n"
+            f"عنوان تصویر: <a href=\"{landing_url}\">{image_title[:60]}</a>\n"
+            f"خالق: {creator_text}\n"
+            f"مجوز: <a href=\"{license_url}\">{html.escape(license_label(image))}</a>\n"
+            f"منبع خبری: {article_links[0] if article_links else 'پیوند مکمل در دسترس نیست'}\n"
+            "— <b>اطلس</b> | رادار جهانی اتاق وضعیت"
+        )
+    if len(caption) > 1024:
+        raise ValueError("Telegram caption exceeds the 1024-character limit.")
+    return caption
 
 def already_posted(state, today, item, image):
     entries = state.get("images_posted", [])
