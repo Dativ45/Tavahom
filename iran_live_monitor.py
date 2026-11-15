@@ -54,7 +54,9 @@ CATEGORY_RULES = [
 ]
 
 def clean(value):
-    return html.unescape(re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", "", value or ""))).strip()
+    # Normalize actual whitespace after removing markup; keep Persian text intact.
+    text = html.unescape(re.sub(r"<[^>]+>", " ", value or ""))
+    return re.sub(r"\s+", " ", text).strip()
 
 def load_state():
     try:
@@ -78,6 +80,10 @@ def category(text):
             return label
     return "ایران"
 
+def label_is_citizen(source):
+    return source in ("گزارش‌های مردمی", "صدای محله‌ها")
+
+
 def make_item(source, title, summary, link, published_ts, source_kind):
     title = clean(title)
     if not title or not link.startswith("http") or not published_ts:
@@ -85,11 +91,16 @@ def make_item(source, title, summary, link, published_ts, source_kind):
     age = int(time.time()) - int(published_ts)
     if age < -300 or age > MAX_AGE_SECONDS:
         return None
-    canonical = re.sub(r"[^0-9a-z\\u0600-\\u06ff]+", " ", title.lower()).strip()
+    canonical = re.sub(r"[^0-9a-z\u0600-\u06ff]+", " ", title.lower()).strip()
     key = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     body = (title + " " + clean(summary)).lower()
     # Avoid unrelated global stories returned by broad news feeds.
-    if not re.search(r"ایران|تهران|ایرانی|کشور|استان|خلیج فارس|تنگه هرمز|iran|tehran", body, re.I):
+    if not re.search(
+        r"ایران|ایرانی|تهران|مشهد|اصفهان|شیراز|تبریز|اهواز|کرج|قم|رشت|کرمان|یزد|"
+        r"زاهدان|بندرعباس|سنندج|ارومیه|اردبیل|قزوین|گرگان|ساری|بوشهر|خرمشهر|"
+        r"خلیج فارس|تنگه هرمز|دریای عمان|iran|tehran|iranian",
+        body, re.I
+    ):
         return None
     return {
         "source": clean(source)[:100],
@@ -100,7 +111,7 @@ def make_item(source, title, summary, link, published_ts, source_kind):
         "key": key,
         "category": category(body),
         "source_kind": source_kind,
-        "citizen_report": bool(re.search(r"گزارش مردمی|شهروند.?خبرنگار|ارسالی مخاطبان|ویدئو.?ی ارسالی|روایت شهروندان|گزارش محلی", (title + " " + clean(summary)).lower())),
+        "citizen_report": bool(re.search(r"گزارش مردمی|شهروند.?خبرنگار|ارسالی مخاطبان|ویدئو.?ی ارسالی|روایت شهروندان|گزارش محلی", (title + " " + clean(summary)).lower()) or source_kind == "Google News RSS" and label_is_citizen(source)),
     }
 
 def fetch_all():
@@ -233,7 +244,17 @@ def main():
         return
     items = fetch_all()
     candidates = [x for x in items if x["key"] not in seen]
-    candidates.sort(key=lambda x: (x["published_ts"], x["source_kind"] == "خوراک مستقیم"), reverse=True)
+    # Keep the Iran desk focused: hard-news beats outrank sports and generic culture.
+    priority = {
+        "امنیت و منطقه": 6, "سیاست و حکمرانی": 5, "اقتصاد و بازار": 5,
+        "معیشت و کار": 5, "مهاجرت و کنسولی": 4, "جامعه و حوادث": 4,
+        "ایران": 2,
+    }
+    candidates.sort(
+        key=lambda x: (priority.get(x["category"], 1), x["published_ts"],
+                       x["source_kind"] == "خوراک مستقیم"),
+        reverse=True
+    )
     selected = candidates[:min(MAX_PER_RUN, room)]
     if not selected:
         print(f"No fresh Iran stories. scanned={len(items)}")
