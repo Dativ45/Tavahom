@@ -26,26 +26,31 @@ def channel_footer():
     if configured.startswith("https://t.me/"):
         link = configured
     else:
-        response = requests.get(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/getChat",
-            params={"chat_id": CHANNEL},
-            timeout=20,
-        )
-        payload = response.json()
-        if not response.ok or not payload.get("ok"):
-            raise RuntimeError("Telegram getChat failed while resolving channel link: " + str(payload.get("description", payload)))
-        chat = payload.get("result", {})
-        username = chat.get("username")
-        invite_link = chat.get("invite_link")
-        if username:
-            link = f"https://t.me/{username}"
-        elif invite_link:
-            link = invite_link
-        elif str(CHANNEL).startswith("@"):
+        if str(CHANNEL).startswith("@"):
             link = f"https://t.me/{str(CHANNEL)[1:]}"
         else:
-            print("WARNING: Channel is private and Telegram did not expose an invite link; set STATUS_ROOM_CHANNEL_URL.")
-            return ""
+            try:
+                response = requests.get(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/getChat",
+                    params={"chat_id": CHANNEL},
+                    timeout=5,
+                )
+                payload = response.json()
+                if not response.ok or not payload.get("ok"):
+                    print("WARNING: optional getChat footer lookup failed; continuing without footer.")
+                    return ""
+                chat = payload.get("result", {})
+                username = chat.get("username")
+                invite_link = chat.get("invite_link")
+                if username:
+                    link = f"https://t.me/{username}"
+                elif invite_link:
+                    link = invite_link
+                else:
+                    print("WARNING: Channel is private and Telegram did not expose an invite link; continuing without footer.")
+                    return ""
+            except (requests.RequestException, ValueError) as exc:
+                print(f"WARNING: optional channel footer lookup failed ({exc}); continuing without footer.")
     return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
 
 if not BOT_TOKEN or not CHANNEL:
