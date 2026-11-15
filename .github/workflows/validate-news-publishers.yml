@@ -6,12 +6,26 @@ on:
     paths:
       - "bot.py"
       - "influencer_posts.py"
+      - "daily_posts.py"
+      - "daily_briefing.py"
+      - "trend_radar.py"
+      - "livelihood_digest.py"
+      - "market_digest.py"
+      - "sports_results.py"
+      - "iran_sports.py"
       - ".github/workflows/validate-news-publishers.yml"
       - "requirements.txt"
   pull_request:
     paths:
       - "bot.py"
       - "influencer_posts.py"
+      - "daily_posts.py"
+      - "daily_briefing.py"
+      - "trend_radar.py"
+      - "livelihood_digest.py"
+      - "market_digest.py"
+      - "sports_results.py"
+      - "iran_sports.py"
       - "requirements.txt"
   workflow_dispatch:
 
@@ -29,7 +43,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Compile news publishers
-        run: python -m py_compile bot.py influencer_posts.py
+        run: python -m py_compile bot.py influencer_posts.py daily_posts.py daily_briefing.py trend_radar.py livelihood_digest.py market_digest.py sports_results.py iran_sports.py
       - name: Smoke-test editorial scoring
         run: |
           python - <<'PY'
@@ -57,4 +71,26 @@ jobs:
               print(f"{name}: {count} entries; bozo={getattr(parsed, 'bozo', False)}")
               if count == 0:
                   raise SystemExit(f"Feed returned no entries: {name}")
+          PY
+
+      - name: Verify public link previews are enabled
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          publishers = [
+              "bot.py", "daily_posts.py", "daily_briefing.py", "trend_radar.py",
+              "livelihood_digest.py", "market_digest.py", "sports_results.py",
+              "iran_sports.py", "influencer_posts.py",
+          ]
+          for name in publishers:
+              source = Path(name).read_text(encoding="utf-8")
+              if '"disable_web_page_preview": True' in source or "'disable_web_page_preview': True" in source:
+                  if name == "bot.py":
+                      # The pinned internal archive intentionally has no preview.
+                      publisher = source.split("def publish(message):", 1)[1].split("def archive_category_for_desk", 1)[0]
+                      if '"disable_web_page_preview": True' in publisher:
+                          raise SystemExit(f"Link preview is disabled in publisher: {name}")
+                  else:
+                      raise SystemExit(f"Link preview is disabled in publisher: {name}")
+              print(f"{name}: public post previews enabled")
           PY
