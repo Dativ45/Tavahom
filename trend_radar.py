@@ -429,9 +429,9 @@ def build_caption(item, image):
         f"📊 بازتاب: {len(item.get('domains', []))} دامنه خبری در GDELT طی ۲۴ ساعت اخیر"
         f"{caution}\\n\\n"
         "🖼 <b>تصویر آرشیوی/تزئینی</b> — این تصویر عکس واقعی رویداد روز نیست.\\n"
-        f"عنوان تصویر: <a href=\\"{landing_url}\\">{html.escape(clean(image.get('title') or 'مشاهده تصویر'))}</a>\\n"
+        f'عنوان تصویر: <a href="{landing_url}">{html.escape(clean(image.get("title") or "مشاهده تصویر"))}</a>\n'
         f"خالق: {creator_text}\\n"
-        f"مجوز: <a href=\\"{license_url}\\">{html.escape(license_label(image))}</a>\\n"
+        f'مجوز: <a href="{license_url}">{html.escape(license_label(image))}</a>\n'
         f"منابع پوشش خبری: {' | '.join(article_links) if article_links else 'پیوند مکمل در دسترس نیست'}\\n\\n"
         "🧾 <i>ترند بودن، تأیید صحت ادعا نیست؛ تصویر صرفاً برای توضیح موضوع انتخاب شده است.</i>\\n"
         "— <b>اطلس</b> | رادار جهانی اتاق وضعیت"
