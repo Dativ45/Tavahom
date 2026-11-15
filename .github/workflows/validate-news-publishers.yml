@@ -42,3 +42,19 @@ jobs:
           assert influencer_posts.editorial_score(samples[1]) < 2
           print("Editorial scoring smoke test passed.")
           PY
+
+      - name: Check Reuters and AP feed availability
+        run: |
+          python - <<'PY'
+          import feedparser
+          feeds = {
+              "Reuters via Google News": "https://news.google.com/rss/search?q=when:24h+site:reuters.com&ceid=US:en&hl=en-US&gl=US",
+              "AP via verified Flipboard publisher": "https://flipboard.com/@associatedpress/top-stories-u7govdf1z.rss",
+          }
+          for name, url in feeds.items():
+              parsed = feedparser.parse(url)
+              count = len(parsed.entries)
+              print(f"{name}: {count} entries; bozo={getattr(parsed, 'bozo', False)}")
+              if count == 0:
+                  raise SystemExit(f"Feed returned no entries: {name}")
+          PY
