@@ -113,7 +113,11 @@ def fetch_recent_posts(state):
 
 def editorial_score(post):
     text = post["text"].lower()
-    score = sum(2 if len(term.split()) > 1 else 1 for term in IMPORTANT_TERMS if term in text)
+    score = sum(
+        2 if len(term.split()) > 1 else 1
+        for term in IMPORTANT_TERMS
+        if re.search(r"\\b" + re.escape(term) + r"\\b", text)
+    )
     if len(text) < 100:
         score -= 2
     if any(term in text for term in ("like and subscribe", "giveaway", "promo code", "happy birthday")):
