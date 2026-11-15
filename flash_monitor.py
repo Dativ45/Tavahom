@@ -132,21 +132,28 @@ def translate(item):
         + json.dumps({"headline": item["title"], "excerpt": item["summary"]}, ensure_ascii=False)
     )
     endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-    response = requests.post(
-        endpoint,
-        headers={"x-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json", "maxOutputTokens": 650},
-        },
-        timeout=45,
-    )
-    if not response.ok:
-        try:
-            detail = response.json().get("error", {}).get("message", "Gemini request failed")
-        except (ValueError, AttributeError):
-            detail = "Gemini request failed"
-        raise RuntimeError(f"Gemini API error ({response.status_code}): {str(detail)[:300]}")
+    response = None
+    for attempt in range(4):
+        response = requests.post(
+            endpoint,
+            headers={"x-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.1, "responseMimeType": "application/json", "maxOutputTokens": 650},
+            },
+            timeout=45,
+        )
+        if response.ok:
+            break
+        if response.status_code not in (429, 500, 502, 503, 504) or attempt == 3:
+            try:
+                detail = response.json().get("error", {}).get("message", "Gemini request failed")
+            except (ValueError, AttributeError):
+                detail = "Gemini request failed"
+            raise RuntimeError(f"Gemini API error ({response.status_code}): {str(detail)[:300]}")
+        delay = 2 ** (attempt + 1)
+        print(f"Gemini temporary error {response.status_code}; retrying in {delay}s.")
+        time.sleep(delay)
     parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
     raw = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
     data = json.loads(raw)
