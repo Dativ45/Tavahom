@@ -15,6 +15,11 @@ class CoreTests(unittest.TestCase):
             s.begin(k,"x"); self.assertEqual(s.status(k),"pending"); s.mark_sent(k,12)
             self.assertEqual(DeskState(p).status(k),"sent")
             with self.assertRaises(DeskError): s.begin(k)
+    def test_legacy_seen_import(self):
+        with tempfile.TemporaryDirectory() as d:
+            state=DeskState(Path(d)/"state.json")
+            state.import_legacy_seen(["old-key"])
+            self.assertEqual(state.status("legacy:old-key"),"sent")
     def test_corrupt_state_preserved(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/"state.json"; p.write_text("{broken")
@@ -35,6 +40,22 @@ class CoreTests(unittest.TestCase):
         response=Mock(status_code=200,ok=True); response.json.return_value={"ok":False,"description":"chat not found"}
         session=Mock(); session.post.return_value=response
         with self.assertRaises(DeskError): telegram_send("hi",bot_token="t",chat_id="@c",session=session)
+    def test_photo_send_success(self):
+        response=Mock(status_code=200,ok=True); response.json.return_value={"ok":True,"result":{"message_id":8}}
+        session=Mock(); session.post.return_value=response
+        result=telegram_send_photo("https://example.com/photo.jpg","caption",bot_token="t",chat_id="@c",session=session)
+        self.assertEqual(result["message_id"],8)
+        session.post.assert_called_once()
+    def test_photo_caption_limit(self):
+        with self.assertRaises(DeskError):
+            telegram_send_photo("https://example.com/photo.jpg","x"*1025,bot_token="t",chat_id="@c",session=Mock())
+    def test_feed_keeps_image_and_timestamp(self):
+        xml=b"""<rss version="2.0"><channel><title>x</title><item><title>Story</title><link>https://example.com/a</link><description>Summary</description><enclosure url="https://example.com/a.jpg" type="image/jpeg"/><pubDate>Sat, 15 Nov 2026 10:00:00 GMT</pubDate></item></channel></rss>"""
+        response=Mock(content=xml); response.raise_for_status.return_value=None
+        session=Mock(); session.get.return_value=response
+        item=fetch_feed("https://example.com/feed",session=session)[0]
+        self.assertEqual(item["image"],"https://example.com/a.jpg")
+        self.assertGreater(item["published_at"],0)
     def test_timeout_is_not_retried(self):
         session=Mock(); session.post.side_effect=requests.Timeout()
         with self.assertRaises(DeliveryUncertain): telegram_send("hi",bot_token="t",chat_id="@c",session=session)
