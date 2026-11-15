@@ -108,6 +108,21 @@ def format_post(item, title_fa, summary_fa, category):
     return body
 
 
+def format_photo_caption(item, title_fa, summary_fa, category):
+    # Build a separate, bounded caption; never slice HTML markup mid-tag.
+    source = html.escape(item["source"])
+    title = html.escape(title_fa[:180])
+    summary = html.escape(summary_fa[:220])
+    link = html.escape(item["link"], quote=True)
+    return (
+        "📱 <b>اتاق وضعیت | فناوری جهان</b>\\n"
+        f"🏷 <b>{html.escape(category)}</b>\\n"
+        f"<b>{title}</b>\\n{summary}\\n"
+        f"ℹ️ {html.escape(format_rss_notice(item['summary']))}\\n"
+        f"🗞 {source} | <a href=\\"{link}\\">گزارش اصلی</a>"
+    )[:1000]
+
+
 def main():
     dry_run = os.getenv("TECH_V2_DRY_RUN", "1").strip().lower() not in {"0", "false", "no"}
     state = DeskState(STATE_PATH)
@@ -140,7 +155,7 @@ def main():
     try:
         if item.get("image"):
             try:
-                result = telegram_send_photo(item["image"], message[:1024])
+                result = telegram_send_photo(item["image"], format_photo_caption(item, title_fa, summary_fa, category))
             except DeliveryUncertain:
                 raise
             except DeskError:
