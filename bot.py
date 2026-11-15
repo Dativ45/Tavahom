@@ -234,9 +234,9 @@ def translate_and_classify(item):
     for field in ("title_fa", "translation_fa", "summary_fa"):
         data[field] = clean(str(data.get(field, "")))[:2600]
     if not data["title_fa"]:
-        data["title_fa"] = item["title"]
+        data["title_fa"] = "ترجمه تیتر در دسترس نیست"
     if not data["translation_fa"]:
-        data["translation_fa"] = "متن قابل ترجمه در خوراک منبع موجود نبود."
+        data["translation_fa"] = "جزئیات بیشتری در خوراک منبع موجود نبود."
     if not data["summary_fa"]:
         data["summary_fa"] = data["translation_fa"][:500]
     return data
@@ -245,38 +245,20 @@ def build_post(item, translated, source_count):
     alias = DESK_ALIASES.get(translated["desk"], "اطلس")
     archive_category = archive_category_for_desk(translated["desk"])
     tag = "🗂 <b>آرشیو: " + html.escape(archive_category or translated["desk"]) + "</b>"
-    if source_count >= 2:
-        status = "🔎 <b>چندمنبعی | در حال بررسی تحریریه</b>"
-        status_note = f"بازتاب مشابه در {source_count} دامنه مستقلِ خوراک‌ها پیدا شد؛ این به‌تنهایی تأیید قطعی خبر نیست."
-    elif item["source_type"] == "official":
-        status = "⚠️ <b>تأییدنشده | در انتظار بررسی مستقل</b>"
-        status_note = "منبع منتشرکننده رسمی/نهادی است، اما تأیید مستقل کافی در خوراک‌های بررسی‌شده پیدا نشد."
-    else:
-        status = "⚠️ <b>تأییدنشده | در حال بررسی منابع</b>"
-        status_note = "فعلاً فقط یک منبع در خوراک‌های بررسی‌شده دیده شده است؛ خبر قطعی تلقی نشود."
+    status = "⚠️ <b>بازتاب چندمنبعی؛ تأیید مستقل نشده</b>" if source_count >= 2 else "⚠️ <b>تأیید مستقل نشده</b>"
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"])) if item["published_ts"] else "زمان انتشار در خوراک مشخص نیست"
-    original = item["title"]
-    if item["summary"]:
-        original += "\n\n" + item["summary"][:900]
+    body = translated["translation_fa"] or translated["summary_fa"] or "جزئیات بیشتری در خوراک منبع موجود نبود."
     return (
-        "🛰️ <b>اتاق وضعیت | گزارش " + html.escape(translated["desk"]) + "</b>\n"
-        "━━━━━━━━━━━━━━━━━━\n"
-        + status + "\n"
-        + html.escape(status_note) + "\n\n"
-        + "🇮🇷 <b>ترجمه فارسی</b>\n"
-        + "<b>" + html.escape(translated["title_fa"][:350]) + "</b>\n"
-        + html.escape(translated["translation_fa"][:1350]) + "\n\n"
-        + "🌐 <b>Original (English)</b>\n"
-        + "<b>" + html.escape(original[:850]) + "</b>\n\n"
-        + "🧭 <b>یادداشت تحریریه</b>\n"
-        + html.escape(translated["summary_fa"][:450]) + "\n\n"
-        + "━━━━━━━━━━━━━━━━━━\n"
-        + f"🗞 منبع: {html.escape(item['source'])}\n"
-        + tag + "\n"
-        + f"🕒 زمان منبع: {html.escape(published)}\n"
-        + f"🔗 <a href=\"{html.escape(item['link'], quote=True)}\">مشاهده منبع اصلی</a>\n\n"
-        + f"— <b>{html.escape(alias)}</b> | تحریریه {html.escape(translated['desk'])}\n"
-        + "<i>اتاق وضعیت؛ نام‌ها پنهان می‌مانند، حقیقت نه.</i>"
+        "🛰️ <b>اتاق وضعیت | " + html.escape(translated["desk"]) + "</b>\\n"
+        "━━━━━━━━━━━━━━━━━━\\n"
+        + status + "\\n\\n"
+        + "<b>" + html.escape(translated["title_fa"][:350]) + "</b>\\n"
+        + html.escape(body[:1500]) + "\\n\\n"
+        + "🗞 منبع: " + html.escape(item["source"]) + "\\n"
+        + tag + "\\n"
+        + f"🕒 زمان منبع: {html.escape(published)}\\n"
+        + f"🔗 <a href=\\"{html.escape(item['link'], quote=True)}\\">مشاهده منبع</a>\\n\\n"
+        + f"— <b>{html.escape(alias)}</b> | دبیر " + html.escape(translated["desk"])
         + channel_footer()
     )
 
