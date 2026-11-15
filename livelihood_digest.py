@@ -21,7 +21,7 @@ def channel_footer():
   except (requests.RequestException,ValueError) as e:
    print("WARNING: optional channel footer lookup failed:",type(e).__name__); return ""
  if not link.startswith("https://t.me/"): print("WARNING: publishing without optional channel footer."); return ""
- return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
+ return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="'+html.escape(link,quote=True)+'">عضویت در کانال</a>'
 
 NOW=datetime.now(ZoneInfo("Asia/Tehran"))
 STATE=Path("livelihood_state.json")
