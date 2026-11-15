@@ -29,8 +29,6 @@ DIRECT_FEEDS = [
     ("مهر", "https://www.mehrnews.com/rss"),
     ("باشگاه خبرنگاران جوان", "https://www.yjc.ir/fa/rss/allnews"),
     ("تابناک", "https://www.tabnak.ir/fa/rss/allnews"),
-    ("تسنیم", "https://www.tasnimnews.ir/fa/rss/feed/0/8/0/"),
-    ("فارس", "https://www.farsnews.ir/rss"),
     ("ایلنا", "https://www.ilna.ir/rss"),
     ("خبرآنلاین", "https://www.khabaronline.ir/rss"),
 ]
@@ -220,8 +218,13 @@ def translate(item):
             raise RuntimeError(f"Gemini API {response.status_code}: {response.text[:250]}")
         time.sleep(2 ** (attempt + 1))
     parts = response.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
-    data = json.loads("".join(p.get("text", "") for p in parts if isinstance(p, dict)))
-    return clean(data.get("title_fa", ""))[:300] or item["title"], clean(data.get("summary_fa", ""))[:850] or "خوراک منبع جزئیات بیشتری ارائه نکرده است."
+    raw = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+    data = json.loads(raw)
+    if isinstance(data, list):
+        data = next((entry for entry in data if isinstance(entry, dict)), {})
+    if not isinstance(data, dict):
+        data = {}
+    return clean(str(data.get("title_fa", "")))[:300] or item["title"], clean(str(data.get("summary_fa", "")))[:850] or "خوراک منبع جزئیات بیشتری ارائه نکرده است."
 
 def build_message(item, title_fa, summary_fa):
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"]))
