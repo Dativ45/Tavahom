@@ -24,11 +24,7 @@ TEHRAN = ZoneInfo("Asia/Tehran")
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 OPENVERSE_URL = "https://api.openverse.org/v1/images/"
 GDELT_QUERIES = [
-    ("فناوری", '("artificial intelligence" OR "machine learning" OR semiconductor OR cybersecurity)'),
-    ("علم و محیط زیست", '("climate change" OR "space exploration" OR NASA OR biodiversity)'),
-    ("ورزش", '(football OR basketball OR cricket OR tennis OR Olympics)'),
-    ("فرهنگ", '(cinema OR film OR music OR festival OR literature)'),
-    ("اقتصاد", '(inflation OR trade OR energy OR "central bank" OR employment)'),
+    ("موضوعات جهان", '("artificial intelligence" OR "machine learning" OR semiconductor OR cybersecurity OR "climate change" OR "space exploration" OR NASA OR biodiversity OR football OR basketball OR cricket OR tennis OR Olympics OR cinema OR film OR music OR festival OR literature OR inflation OR trade OR energy OR "central bank" OR employment)'),
 ]
 ALLOWED_LICENSES = {"cc0", "by", "by-sa"}
 ALLOWED_FILETYPES = {"jpg", "jpeg", "png"}
@@ -47,10 +43,11 @@ UNSAFE_TERMS = {
     "shooting", "bombing", "missile", "hostage", "graphic", "gore",
 }
 MAX_DAILY_IMAGES = 3
-MAX_ARTICLES_PER_QUERY = 18
+MAX_ARTICLES_PER_QUERY = 120
 MAX_CANDIDATES = 12
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
-GDELT_MIN_INTERVAL = 5.3
+GDELT_MIN_INTERVAL = 30.0
+GDELT_RETRY_DELAYS = (30.0, 60.0)
 REQUEST_TIMEOUT = 18
 USER_AGENT = "StatusRoomTrendRadar/2.0 (+https://github.com/Dativ45/Tavahom)"
 _LAST_GDELT_REQUEST = 0.0
@@ -70,6 +67,23 @@ def load_state():
         if isinstance(data, dict):
             data.setdefault("posted", [])
             data.setdefault("images_posted", [])
+            # Migrate legacy date:fingerprint entries so an older trend publisher
+            # cannot bypass today's three-post cap or repeat a topic.
+            existing = {
+                entry.get("topic_key")
+                for entry in data["images_posted"]
+                if isinstance(entry, dict)
+            }
+            for legacy in data["posted"]:
+                if not isinstance(legacy, str):
+                    continue
+                match = re.match(r"^(\d{4}-\d{2}-\d{2}):([0-9a-f]{32,64})$", legacy)
+                if match and legacy not in existing:
+                    data["images_posted"].append({
+                        "date": match.group(1),
+                        "topic_key": legacy,
+                        "legacy": True,
+                    })
             return data
     except (FileNotFoundError, json.JSONDecodeError):
         pass
@@ -97,6 +111,21 @@ def parse_gdelt_time(value):
     return None
 
 
+def infer_category(title):
+    text = clean(title).lower()
+    categories = [
+        ("فناوری", ("artificial intelligence", "machine learning", "cybersecurity", "semiconductor", "chip", "robot", "quantum")),
+        ("علم و محیط زیست", ("climate", "space", "nasa", "biodiversity", "wildlife", "conservation")),
+        ("ورزش", ("football", "soccer", "basketball", "cricket", "tennis", "olympic", "nba", "fifa")),
+        ("فرهنگ", ("cinema", "film", "music", "festival", "literature", "museum")),
+        ("اقتصاد", ("inflation", "trade", "energy", "central bank", "employment", "economy", "market")),
+    ]
+    for category, terms in categories:
+        if any(term in text for term in terms):
+            return category
+    return "بین‌الملل"
+
+
 def wait_for_gdelt_slot():
     global _LAST_GDELT_REQUEST
     elapsed = time.monotonic() - _LAST_GDELT_REQUEST
@@ -114,7 +143,7 @@ def fetch_gdelt_query(label, query):
         "timespan": "24h",
         "sort": "DateDesc",
     }
-    for attempt in range(2):
+    for attempt in range(3):
         wait_for_gdelt_slot()
         try:
             response = requests.get(
@@ -123,9 +152,18 @@ def fetch_gdelt_query(label, query):
                 headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
                 timeout=REQUEST_TIMEOUT,
             )
-            if response.status_code == 429 and attempt == 0:
-                log.warning("GDELT rate limit for %s; backing off once.", label)
-                time.sleep(6.0)
+            if response.status_code == 429:
+                if attempt == 2:
+                    log.warning("GDELT rate limit persisted for %s; skipping this run.", label)
+                    return []
+                retry_after = response.headers.get("Retry-After", "")
+                try:
+                    delay = max(float(retry_after), GDELT_RETRY_DELAYS[attempt])
+                except (TypeError, ValueError):
+                    delay = GDELT_RETRY_DELAYS[attempt]
+                delay = min(delay, 90.0)
+                log.warning("GDELT rate limit for %s; retrying after %.0f seconds.", label, delay)
+                time.sleep(delay)
                 continue
             response.raise_for_status()
             content_type = response.headers.get("Content-Type", "").lower()
@@ -156,7 +194,7 @@ def fetch_gdelt_query(label, query):
                     "url": link,
                     "domain": domain,
                     "seen_at": seen_at.isoformat(),
-                    "query_category": label,
+                    "query_category": infer_category(title) if label == "موضوعات جهان" else label,
                 })
             return cleaned
         except (requests.RequestException, ValueError, TypeError) as exc:
@@ -344,6 +382,23 @@ def usable_openverse_image(image, topic):
     landing_url = str(image.get("foreign_landing_url") or "").strip()
     filetype = str(image.get("filetype") or "").lower().strip()
     if license_code not in ALLOWED_LICENSES:
+        return False
+    if not str(image.get("id") or "").strip():
+        return False
+    license_path = license_url.lower().rstrip("/")
+    if license_code == "cc0":
+        license_matches = bool(re.fullmatch(
+            r"https://creativecommons\.org/publicdomain/zero/[0-9.]+", license_path
+        ))
+    elif license_code == "by":
+        license_matches = bool(re.fullmatch(
+            r"https://creativecommons\.org/licenses/by/[0-9.]+", license_path
+        ))
+    else:
+        license_matches = bool(re.fullmatch(
+            r"https://creativecommons\.org/licenses/by-sa/[0-9.]+", license_path
+        ))
+    if not license_matches:
         return False
     if not license_url.startswith("https://") or not landing_url.startswith("https://"):
         return False
