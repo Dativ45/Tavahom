@@ -82,6 +82,9 @@ def collect():
                 print(f"Feed warning [{source}]: {str(getattr(feed, 'bozo_exception', 'invalid feed'))[:160]}")
             for entry in feed.entries[:30]:
                 title = clean(entry.get("title"))
+                # Avoid low-signal polls/surveys being presented as breaking technology news.
+                if re.search(r"\b(poll|survey)\b", title, re.I):
+                    continue
                 link = entry.get("link", "")
                 if not title or not link.startswith(("http://", "https://")):
                     continue
