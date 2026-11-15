@@ -24,11 +24,7 @@ TEHRAN = ZoneInfo("Asia/Tehran")
 GDELT_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 OPENVERSE_URL = "https://api.openverse.org/v1/images/"
 GDELT_QUERIES = [
-    ("فناوری", '("artificial intelligence" OR "machine learning" OR semiconductor OR cybersecurity)'),
-    ("علم و محیط زیست", '("climate change" OR "space exploration" OR NASA OR biodiversity)'),
-    ("ورزش", '(football OR basketball OR cricket OR tennis OR Olympics)'),
-    ("فرهنگ", '(cinema OR film OR music OR festival OR literature)'),
-    ("اقتصاد", '(inflation OR trade OR energy OR "central bank" OR employment)'),
+    ("موضوعات جهانی", '("artificial intelligence" OR "machine learning" OR semiconductor OR cybersecurity OR "climate change" OR NASA OR "space exploration" OR football OR basketball OR cricket OR tennis OR Olympics OR cinema OR film OR music OR festival OR literature OR inflation OR trade OR energy OR employment)'),
 ]
 ALLOWED_LICENSES = {"cc0", "by", "by-sa"}
 ALLOWED_FILETYPES = {"jpg", "jpeg", "png"}
@@ -47,13 +43,15 @@ UNSAFE_TERMS = {
     "shooting", "bombing", "missile", "hostage", "graphic", "gore",
 }
 MAX_DAILY_IMAGES = 3
-MAX_ARTICLES_PER_QUERY = 18
+MAX_ARTICLES_PER_QUERY = 75
 MAX_CANDIDATES = 12
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
-GDELT_MIN_INTERVAL = 5.3
+GDELT_MIN_INTERVAL = 30.0
 REQUEST_TIMEOUT = 18
+OPENVERSE_MIN_INTERVAL = 2.0
 USER_AGENT = "StatusRoomTrendRadar/2.0 (+https://github.com/Dativ45/Tavahom)"
 _LAST_GDELT_REQUEST = 0.0
+_LAST_OPENVERSE_REQUEST = 0.0
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger("status-room-trends")
@@ -125,7 +123,7 @@ def fetch_gdelt_query(label, query):
             )
             if response.status_code == 429 and attempt == 0:
                 log.warning("GDELT rate limit for %s; backing off once.", label)
-                time.sleep(6.0)
+                time.sleep(30.0)
                 continue
             response.raise_for_status()
             content_type = response.headers.get("Content-Type", "").lower()
@@ -227,49 +225,92 @@ def candidate_is_safe(candidate):
 
 
 def discover_gdelt_trends():
-    all_articles = []
-    for label, query in GDELT_QUERIES:
-        all_articles.extend(fetch_gdelt_query(label, query))
-    # De-duplicate syndicated copies from the same URL before clustering.
+    label, query = GDELT_QUERIES[0]
+    articles = fetch_gdelt_query(label, query)
     unique = {}
-    for article in all_articles:
+    for article in articles:
         unique.setdefault(article["url"], article)
-    clustered = cluster_gdelt_articles(list(unique.values()))
-    candidates = [item for item in clustered if candidate_is_safe(item)]
+    result = sorted(unique.values(), key=lambda item: item["seen_at"], reverse=True)
+    domains = len({item["domain"] for item in result})
     log.info(
-        "GDELT discovery: %d recent articles, %d multi-domain clusters, %d family-safe candidates.",
-        len(unique), len(clustered), len(candidates),
+        "GDELT discovery: %d recent articles across %d domains; Gemini will cluster only source-backed topics.",
+        len(result), domains,
     )
-    return candidates[:MAX_CANDIDATES]
+    if len(result) < 2 or domains < 2:
+        return []
+    return result[:MAX_ARTICLES_PER_QUERY]
+
+def build_candidate_from_indices(articles, indices, headline, explanation, caution=""):
+    selected = []
+    seen_indices = set()
+    for raw_index in indices:
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError):
+            continue
+        if index < 0 or index >= len(articles) or index in seen_indices:
+            continue
+        seen_indices.add(index)
+        selected.append(articles[index])
+    if len(selected) < 2:
+        return None
+    domains = sorted({item["domain"] for item in selected})
+    if len(domains) < 2:
+        return None
+    first_tokens = title_tokens(selected[0]["title"])
+    if not first_tokens:
+        return None
+    if any(not (first_tokens & title_tokens(item["title"])) for item in selected[1:]):
+        return None
+    selected = sorted(selected, key=lambda item: item["seen_at"], reverse=True)
+    topic = selected[0]["title"]
+    fingerprint_source = " ".join(sorted(item["title"].lower() for item in selected))
+    candidate = {
+        "topic": topic,
+        "category": selected[0].get("query_category", "موضوعات جهانی"),
+        "domains": domains,
+        "articles": selected[:5],
+        "fingerprint": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest(),
+        "score": len(domains) * 10 + min(len(selected), 8) * 2,
+        "headline_fa": clean(headline)[:150],
+        "explanation_fa": clean(explanation)[:500],
+        "caution_fa": clean(caution)[:220],
+    }
+    if not candidate["headline_fa"] or not candidate["explanation_fa"] or not candidate_is_safe(candidate):
+        return None
+    return candidate
 
 
-def summarize_candidates(candidates):
-    if not candidates:
+def summarize_candidates(articles):
+    if not articles:
         return []
     if not GEMINI_KEY:
         raise RuntimeError("GEMINI_API_KEY is required to prepare Persian editorial captions.")
-    compact = []
-    for index, candidate in enumerate(candidates):
-        compact.append({
-            "candidate_id": index,
-            "source_headline": candidate["topic"],
-            "category": candidate["category"],
-            "independent_domains": candidate["domains"],
-            "other_headlines": [item["title"] for item in candidate["articles"][1:4]],
-        })
+    compact = [
+        {
+            "article_id": index,
+            "title": item["title"],
+            "domain": item["domain"],
+            "category": item["query_category"],
+        }
+        for index, item in enumerate(articles[:MAX_ARTICLES_PER_QUERY])
+    ]
     prompt = (
         "You are the cautious Persian visual-trend editor for Status Room. "
-        "Use only the supplied candidate headlines. A cluster means multiple domains covered similar wording; "
-        "it is not proof that the underlying claim is true. Do not invent facts, numbers, causes, quotes, "
-        "locations, identities, virality or public opinion. Exclude match listings, isolated names, generic "
+        "Group the supplied article headlines by the same specific topic/event. "
+        "Return at most 3 groups. Every group MUST cite at least two different article_id values "
+        "from at least two different domains. Do not group articles merely because they share a broad category. "
+        "Use only the supplied headlines; do not invent facts, numbers, causes, quotes, locations, identities, "
+        "virality or public opinion. A multi-domain cluster means multiple outlets cover a similar topic; "
+        "it is not proof that the underlying claim is true. Exclude match listings, isolated names, generic "
         "phrases, rumors, political/military allegations, graphic events, gambling, drugs, sexual material, "
         "hate, harassment and dangerous challenges. Prefer a clear public-interest subject suitable for a "
-        "family-friendly image card. Return at most 3 items and only candidate_id values present in the input. "
-        "Return JSON only: {items:[{candidate_id,headline_fa,explanation_fa,caution_fa}]}. "
-        "headline_fa must be a concise Persian rendering of the supplied source headline, not a new claim. "
-        "explanation_fa must say this is a topic receiving coverage across multiple media outlets, and avoid "
-        "asserting unverified details. caution_fa should be empty unless the source headlines themselves show "
-        "uncertainty. If no topic is safe and meaningful, return {items:[]}.\n\n"
+        "family-friendly image card. Return JSON only: "
+        "{items:[{article_indices:[integer,integer,...],headline_fa,explanation_fa,caution_fa}]}. "
+        "headline_fa must be a concise Persian rendering of the supplied headlines, not a new claim. "
+        "explanation_fa must say the topic is receiving coverage across multiple media outlets and avoid "
+        "asserting unverified details. caution_fa should be empty unless the headlines themselves show uncertainty. "
+        "If no safe topic has at least two independent domains, return {items:[]}.\n\n"
         + json.dumps(compact, ensure_ascii=False)
     )
     endpoint = (
@@ -284,7 +325,7 @@ def summarize_candidates(candidates):
             "generationConfig": {
                 "temperature": 0.1,
                 "responseMimeType": "application/json",
-                "maxOutputTokens": 1500,
+                "maxOutputTokens": 1800,
             },
         },
         timeout=45,
@@ -299,28 +340,18 @@ def summarize_candidates(candidates):
     parsed = json.loads(raw)
     selected = []
     for item in parsed.get("items", [])[:MAX_DAILY_IMAGES]:
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or not isinstance(item.get("article_indices"), list):
             continue
-        try:
-            candidate_id = int(item.get("candidate_id"))
-        except (TypeError, ValueError):
-            continue
-        if candidate_id < 0 or candidate_id >= len(candidates):
-            continue
-        headline = clean(item.get("headline_fa"))[:150]
-        explanation = clean(item.get("explanation_fa"))[:500]
-        caution = clean(item.get("caution_fa"))[:220]
-        if not headline or not explanation:
-            continue
-        candidate = dict(candidates[candidate_id])
-        candidate.update({
-            "headline_fa": headline,
-            "explanation_fa": explanation,
-            "caution_fa": caution,
-        })
-        selected.append(candidate)
-    return selected
-
+        candidate = build_candidate_from_indices(
+            articles,
+            item["article_indices"],
+            item.get("headline_fa", ""),
+            item.get("explanation_fa", ""),
+            item.get("caution_fa", ""),
+        )
+        if candidate:
+            selected.append(candidate)
+    return sorted(selected, key=lambda item: item["score"], reverse=True)[:MAX_DAILY_IMAGES]
 
 def image_is_relevant(image, topic):
     title_and_tags = clean(image.get("title", "")) + " " + " ".join(
