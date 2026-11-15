@@ -35,7 +35,7 @@ FEEDS=[
 ]
 def clean(s): return html.unescape(re.sub(r"\s+"," ",BeautifulSoup(s or "","html.parser").get_text(" ",strip=True))).strip()
 def send(text):
- r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":text,"parse_mode":"HTML","disable_web_page_preview":True},timeout=35)
+ r=requests.post("https://api.telegram.org/bot"+BOT+"/sendMessage",json={"chat_id":CHAT,"text":text,"parse_mode":"HTML","disable_web_page_preview":False},timeout=35)
  p=r.json()
  if not r.ok or not p.get("ok"): raise RuntimeError(p.get("description","Telegram send failed"))
  return p["result"]["message_id"]
