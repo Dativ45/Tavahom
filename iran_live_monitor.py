@@ -93,7 +93,7 @@ def category(text):
     return "ایران"
 
 def label_is_citizen(source):
-    return source in ("گزارش‌های مردمی", "صدای محله‌ها")
+    return source in ("گزارش‌های مردمی", "صدای محله‌ها", "گزارش‌های مردمی و محلی")
 
 
 def make_item(source, title, summary, link, published_ts, source_kind):
@@ -165,6 +165,21 @@ def fetch_all():
                 item = make_item(publisher or label, title, entry.get("summary", entry.get("description", "")), entry.get("link", ""), ts, "Google News RSS")
                 if item:
                     item["query_desk"] = label
+                    desk_categories = {
+                        "سیاست و حکمرانی": "سیاست و حکمرانی",
+                        "امنیت و تحولات منطقه": "امنیت و منطقه",
+                        "اقتصاد و بازار": "اقتصاد و بازار",
+                        "معیشت و کار": "معیشت و کار",
+                        "جامعه، سلامت و آموزش": "جامعه و حوادث",
+                        "مهاجرت و کنسولی": "مهاجرت و کنسولی",
+                        "استان‌ها و مدیریت شهری": "جامعه و حوادث",
+                        "آب، برق و انرژی و حمل‌ونقل": "آب و برق و انرژی",
+                        "مسکن و کسب‌وکار": "مسکن و اجاره",
+                        "محیط زیست و آب و هوا": "محیط زیست",
+                        "گزارش‌های مردمی و محلی": "جامعه و حوادث",
+                    }
+                    if item["category"] == "ایران" and label in desk_categories:
+                        item["category"] = desk_categories[label]
                     item["citizen_report"] = item.get("citizen_report", False) or label_is_citizen(label)
                     items.append(item)
             print(f"Search {label}: {len(feed.entries)} entries")
