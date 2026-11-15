@@ -23,32 +23,34 @@ MAX_POSTS_PER_RUN = 3  # Channel-local archive index verified
 MAX_SEEN = 5000
 
 def channel_footer():
-    """Return a clickable channel join/follow link when Telegram exposes one."""
+    """Add a channel link when known; footer lookup must never block publishing."""
     configured = os.getenv("STATUS_ROOM_CHANNEL_URL", "").strip()
     if configured.startswith("https://t.me/"):
         link = configured
+    elif str(CHANNEL).startswith("@"):
+        link = f"https://t.me/{str(CHANNEL)[1:]}"
     else:
-        response = requests.get(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/getChat",
-            params={"chat_id": CHANNEL},
-            timeout=20,
-        )
-        payload = response.json()
-        if not response.ok or not payload.get("ok"):
-            raise RuntimeError("Telegram getChat failed while resolving channel link: " + str(payload.get("description", payload)))
-        chat = payload.get("result", {})
-        username = chat.get("username")
-        invite_link = chat.get("invite_link")
-        if username:
-            link = f"https://t.me/{username}"
-        elif invite_link:
-            link = invite_link
-        elif str(CHANNEL).startswith("@"):
-            link = f"https://t.me/{str(CHANNEL)[1:]}"
-        else:
-            print("WARNING: Channel is private and Telegram did not expose an invite link; set STATUS_ROOM_CHANNEL_URL.")
+        try:
+            response = requests.get(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/getChat",
+                params={"chat_id": CHANNEL},
+                timeout=5,
+            )
+            payload = response.json()
+            if not response.ok or not payload.get("ok"):
+                print("WARNING: getChat could not resolve the optional channel footer.")
+                return ""
+            chat = payload.get("result", {})
+            username = chat.get("username")
+            invite_link = chat.get("invite_link")
+            link = f"https://t.me/{username}" if username else (invite_link or "")
+        except (requests.RequestException, ValueError) as exc:
+            print(f"WARNING: optional channel footer lookup failed: {type(exc).__name__}")
             return ""
-    return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
+    if not link.startswith("https://t.me/"):
+        print("WARNING: no public channel URL available; publishing without optional footer.")
+        return ""
+    return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
 
 if not BOT_TOKEN or not CHANNEL:
     raise SystemExit("Missing GitHub Actions secrets: TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID")
