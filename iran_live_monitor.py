@@ -196,32 +196,22 @@ def translate(item):
 
 def build_message(item, title_fa, summary_fa):
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"]))
-    if item.get("citizen_report"):
-        confidence = "گزارش مردمی بازنشرشده؛ تأیید مستقل نشده و صرفاً برای اطلاع‌رسانی است."
-        desk_label = "صدای مردم | " + item["category"]
-    else:
-        confidence = "گزارش اولیه؛ تأیید مستقل در این سامانه احراز نشده است."
-        desk_label = item["category"]
+    desk_label = "صدای مردم | " + item["category"] if item.get("citizen_report") else item["category"]
     lines = [
         "🇮🇷 <b>اتاق وضعیت | خبر ایران</b>",
         "━━━━━━━━━━━━━━━━━━",
         "🗂 <b>" + html.escape(desk_label) + "</b>",
-        "⚠️ " + confidence,
-    ]
-    if item.get("citizen_report"):
-        lines.append("⛔ اطلاعات هویتی افراد عادی بازنشر نمی‌شود.")
-    lines.extend([
+        "⚠️ <b>تأیید مستقل نشده</b>",
         "",
         "<b>" + html.escape(title_fa) + "</b>",
         html.escape(summary_fa),
         "",
         "🗞 منبع: " + html.escape(item["source"]),
         "🕒 انتشار منبع: " + html.escape(published),
-        '<a href="' + html.escape(item["link"], quote=True) + '">متن و جزئیات منبع</a>',
-        "",
-        "<i>زمان انتشار منبع با زمان دریافت خبر یکسان نیست.</i>",
-    ])
+        '<a href="' + html.escape(item["link"], quote=True) + '">مشاهده منبع</a>',
+    ]
     return chr(10).join(lines)
+
 
 def publish(message):
     response = requests.post(
