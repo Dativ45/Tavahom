@@ -35,7 +35,7 @@ jobs:
           python - <<'PY'
           import influencer_posts
           samples = [
-              {"text": "The government announced new sanctions and a ceasefire proposal after the attack."},
+              {"text": "The government announced new sanctions and a ceasefire proposal after the attack, with measures to protect civilians and regional stability."},
               {"text": "Good morning everyone, have a wonderful weekend!"},
           ]
           assert influencer_posts.editorial_score(samples[0]) >= 2
