@@ -11,22 +11,32 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
 def channel_footer():
+    """Resolve an optional channel link without making publication depend on getChat."""
     configured = os.getenv("STATUS_ROOM_CHANNEL_URL", "").strip()
     if configured.startswith("https://t.me/"):
         link = configured
+    elif str(CHANNEL).startswith("@"):
+        link = "https://t.me/" + str(CHANNEL)[1:]
     else:
-        r = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getChat", params={"chat_id": CHANNEL}, timeout=20)
-        p = r.json()
-        if not r.ok or not p.get("ok"):
-            raise RuntimeError("Telegram getChat failed: " + str(p.get("description", p)))
-        chat = p.get("result", {})
-        link = ("https://t.me/" + chat["username"]) if chat.get("username") else chat.get("invite_link", "")
-        if not link and str(CHANNEL).startswith("@"):
-            link = "https://t.me/" + str(CHANNEL)[1:]
-    if not link:
-        print("WARNING: Set STATUS_ROOM_CHANNEL_URL to a public channel or invite link.")
+        try:
+            r = requests.get(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/getChat",
+                params={"chat_id": CHANNEL},
+                timeout=5,
+            )
+            p = r.json()
+            if not r.ok or not p.get("ok"):
+                print("WARNING: getChat could not resolve optional footer.")
+                return ""
+            chat = p.get("result", {})
+            link = ("https://t.me/" + chat["username"]) if chat.get("username") else chat.get("invite_link", "")
+        except (requests.RequestException, ValueError) as exc:
+            print(f"WARNING: optional channel footer lookup failed: {type(exc).__name__}")
+            return ""
+    if not link.startswith("https://t.me/"):
+        print("WARNING: publishing without optional channel footer.")
         return ""
-    return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
+    return '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
 
 if not BOT_TOKEN or not CHANNEL or not GEMINI_KEY:
     raise SystemExit("Missing required Telegram or Gemini secrets.")
