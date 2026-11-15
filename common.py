@@ -39,7 +39,7 @@ def safe_channel_footer(bot_token, chat_id, configured_url=""):
         print("WARNING: no channel URL available; publishing without optional footer.")
         return ""
     return (
-        '\\n\\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> '
+        '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> '
         '<a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
     )
 
