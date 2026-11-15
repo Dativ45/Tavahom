@@ -43,6 +43,8 @@ SEARCHES = [
     ("استان‌ها", "اخبار استان های ایران استانداری حوادث تعطیلی"),
     ("گزارش‌های مردمی", '"گزارش مردمی" OR "شهروند خبرنگار" OR "ویدئوی ارسالی شهروندان" OR "گزارش شهروندان" ایران'),
     ("صدای محله‌ها", '"گزارش محلی" OR "ارسالی مخاطبان" OR "روایت شهروندان" ایران حادثه قطعی آب برق آلودگی'),
+    ("تحولات ایران در رسانه‌های جهانی", '(Iran OR Iranian) (politics OR security OR economy OR sanctions OR nuclear OR protests)'),
+    ("ایران و تحولات منطقه", '(Iran OR Iranian) (Israel OR Gulf OR Hormuz OR IAEA OR CENTCOM)'),
 ]
 CATEGORY_RULES = [
     ("امنیت و منطقه", r"موشک|پهپاد|حمله|انفجار|پدافند|نظامی|اسرائیل|آمریکا|جنگ|آتش.?بس|تنگه هرمز|خلیج فارس|تحریم"),
@@ -133,7 +135,7 @@ def fetch_all():
             print(f"Feed warning [{source}]: {str(exc)[:180]}")
 
     for label, query in SEARCHES:
-        url = "https://news.google.com/rss/search?q=" + quote(query + " when:2h") + "&hl=fa-IR&gl=IR&ceid=IR:fa"
+        url = "https://news.google.com/rss/search?q=" + quote(query + " when:2h") + "&hl=en-US&gl=US&ceid=US:en"
         try:
             response = requests.get(url, headers=headers, timeout=18)
             response.raise_for_status()
