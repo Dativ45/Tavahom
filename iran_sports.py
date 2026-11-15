@@ -47,9 +47,9 @@ def main():
   items=[x for x in collect(kind) if x["key"] not in seen]; items.sort(key=lambda x:x["ts"],reverse=True)
   if not items: print("No new",desk); continue
   x=items[0]; title,summary=translate(x["title"],x["summary"],desk)
-  msg=("🛰️ <b>اتاق وضعیت | "+heading+"</b>\\n━━━━━━━━━━━━━━━━━━\\n"
-   "⚠️ <b>تأیید مستقل نشده</b>\\n\\n🇮🇷 <b>"+html.escape(title)+"</b>\\n"+html.escape(summary[:1100])+
-   "\\n\\n🗞 منبع: "+html.escape(x["source"])+"\\n🔗 <a href=\\""+html.escape(x["link"],quote=True)+"\\">مشاهده منبع</a>\\n\\n— <b>"+alias+"</b> | دبیر "+desk+
+  msg=("🛰️ <b>اتاق وضعیت | "+heading+"</b>\n━━━━━━━━━━━━━━━━━━\n"
+   "⚠️ <b>تأیید مستقل نشده</b>\n\n🇮🇷 <b>"+html.escape(title)+"</b>\n"+html.escape(summary[:1100])+
+   "\n\n🗞 منبع: "+html.escape(x["source"])+"\n🔗 <a href=\""+html.escape(x["link"],quote=True)+"\">مشاهده منبع</a>\n\n— <b>"+alias+"</b> | دبیر "+desk+
    channel_footer())
   send(msg); seen.add(x["key"]); count+=1; print("Published",desk,x["title"])
  STATE.write_text(json.dumps({"seen":list(seen)[-4000:]},ensure_ascii=False,indent=2),encoding="utf-8")
