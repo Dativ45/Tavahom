@@ -113,7 +113,7 @@ def translate(item):
         "prices, release dates, test results, or claims absent from the supplied text. "
         "Choose category from: گوشی هوشمند، تبلت، گجت و پوشیدنی، هوش مصنوعی، نرم‌افزار، "
         "سخت‌افزار و تراشه، امنیت سایبری، فناوری مصرفی. If the source excerpt lacks details, "
-        "say so plainly. Keep summary to 2-3 concise sentences.\\n"
+        "say so plainly. Keep summary to 2-3 concise sentences.\n"
         + json.dumps({"source": item["source"], "headline": item["title"], "excerpt": item["summary"]}, ensure_ascii=False)
     )
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
@@ -152,23 +152,23 @@ def footer():
         link = "https://t.me/" + str(CHAT)[1:]
     else:
         return ""
-    return '\\n\\n📣 <a href="' + html.escape(link, quote=True) + '">عضویت در اتاق وضعیت</a>'
+    return '\n\n📣 <a href="' + html.escape(link, quote=True) + '">عضویت در اتاق وضعیت</a>'
 
 
 def post(item, title_fa, summary_fa, category):
     timestamp = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["timestamp"])) if item["timestamp"] else "زمان انتشار در خوراک مشخص نیست"
     caption = (
-        "📱 <b>اتاق وضعیت | فناوری جهان</b>\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
-        f"🏷 <b>{html.escape(category)}</b>\\n\\n"
-        f"🇮🇷 <b>{html.escape(title_fa)}</b>\\n"
-        f"{html.escape(summary_fa)}\\n\\n"
-        "🌐 <b>Original (English)</b>\\n"
-        f"{html.escape(item['title'][:500])}\\n\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
-        f"🗞 منبع: {html.escape(item['source'])}\\n"
-        f"🕒 زمان خوراک: {html.escape(timestamp)}\\n"
-        f"🔗 <a href=\\"{html.escape(item['link'], quote=True)}\\">گزارش کامل و مشخصات اصلی</a>"
+        "📱 <b>اتاق وضعیت | فناوری جهان</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"🏷 <b>{html.escape(category)}</b>\n\n"
+        f"🇮🇷 <b>{html.escape(title_fa)}</b>\n"
+        f"{html.escape(summary_fa)}\n\n"
+        "🌐 <b>Original (English)</b>\n"
+        f"{html.escape(item['title'][:500])}\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        f"🗞 منبع: {html.escape(item['source'])}\n"
+        f"🕒 زمان خوراک: {html.escape(timestamp)}\n"
+        f"🔗 <a href=\"{html.escape(item['link'], quote=True)}\">گزارش کامل و مشخصات اصلی</a>"
         + footer()
     )
     # Telegram captions are limited to 1024 characters after entity parsing.
@@ -186,7 +186,7 @@ def post(item, title_fa, summary_fa, category):
             print("Photo delivery unavailable; falling back to text:", str(payload.get("description", payload))[:250])
         except (requests.RequestException, ValueError) as exc:
             print("Photo delivery error; falling back to text:", str(exc)[:200])
-    text_message = caption + "\\n\\n🖼 تصویر در خوراک منبع موجود نبود یا تلگرام نتوانست آن را دریافت کند."
+    text_message = caption + "\n\n🖼 تصویر در خوراک منبع موجود نبود یا تلگرام نتوانست آن را دریافت کند."
     response = requests.post(
         f"https://api.telegram.org/bot{BOT}/sendMessage",
         json={"chat_id": CHAT, "text": text_message, "parse_mode": "HTML", "disable_web_page_preview": False},
