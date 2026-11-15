@@ -33,7 +33,7 @@ FEEDS = [
 ]
 
 def clean(value):
-    return html.unescape(re.sub(r"\\s+", " ", re.sub(r"<[^>]+>", " ", value or ""))).strip()
+    return html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", value or ""))).strip()
 
 def load_state():
     try:
@@ -121,10 +121,10 @@ def translate(item):
 def footer():
     configured = os.getenv("STATUS_ROOM_CHANNEL_URL", "").strip()
     if configured.startswith("https://t.me/"):
-        return '\\n\\n📣 <a href="' + html.escape(configured, quote=True) + '">عضویت در اتاق وضعیت</a>'
+        return '\n\n📣 <a href="' + html.escape(configured, quote=True) + '">عضویت در اتاق وضعیت</a>'
     if str(CHAT).startswith("@"):
         link = "https://t.me/" + str(CHAT)[1:]
-        return '\\n\\n📣 <a href="' + html.escape(link, quote=True) + '">عضویت در اتاق وضعیت</a>'
+        return '\n\n📣 <a href="' + html.escape(link, quote=True) + '">عضویت در اتاق وضعیت</a>'
     return ""
 
 def post(item, title_fa, summary_fa, field):
@@ -136,22 +136,22 @@ def post(item, title_fa, summary_fa, field):
         labels.append("ℹ️ <b>بر پایه بیانیه مطبوعاتی/اطلاعیه پژوهشی؛ نه گزارش مستقل</b>")
     else:
         labels.append("ℹ️ <b>خلاصه بر پایه خوراک منبع؛ جزئیات و روش پژوهش را در اصل گزارش بررسی کنید</b>")
-    doi_match = re.search(r"10\\.\d{4,9}/[-._;()/:A-Z0-9]+", item["summary"] + " " + item["link"], re.I)
-    doi_line = ("\\n🔎 DOI: " + html.escape(doi_match.group(0).rstrip(".,;")) if doi_match else "")
+    doi_match = re.search(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", item["summary"] + " " + item["link"], re.I)
+    doi_line = ("\n🔎 DOI: " + html.escape(doi_match.group(0).rstrip(".,;")) if doi_match else "")
     caption = (
-        "🔬 <b>اتاق وضعیت | علم و سلامت</b>\\n"
-        "━━━━━━━━━━━━━━━━━━\\n"
-        + labels[0] + "\\n"
-        + f"🏷 <b>{html.escape(field)}</b>\\n\\n"
-        + f"🇮🇷 <b>{html.escape(title_fa[:220])}</b>\\n"
-        + html.escape(summary_fa[:700]) + "\\n\\n"
-        + "🌐 <b>Original (English)</b>\\n"
+        "🔬 <b>اتاق وضعیت | علم و سلامت</b>\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        + labels[0] + "\n"
+        + f"🏷 <b>{html.escape(field)}</b>\n\n"
+        + f"🇮🇷 <b>{html.escape(title_fa[:220])}</b>\n"
+        + html.escape(summary_fa[:700]) + "\n\n"
+        + "🌐 <b>Original (English)</b>\n"
         + html.escape(item["title"][:240])
-        + ("\\n" + html.escape(item["summary"][:700]) if item["summary"] else "")
-        + "\\n\\n━━━━━━━━━━━━━━━━━━\\n"
-        + f"🗞 منبع: {html.escape(item['source'])}\\n"
+        + ("\n" + html.escape(item["summary"][:700]) if item["summary"] else "")
+        + "\n\n━━━━━━━━━━━━━━━━━━\n"
+        + f"🗞 منبع: {html.escape(item['source'])}\n"
         + f"🕒 زمان خوراک: {html.escape(timestamp)}"
-        + doi_line + "\\n"
+        + doi_line + "\n"
         + f"🔗 <a href=\"{html.escape(item['link'], quote=True)}\">گزارش/پژوهش اصلی</a>"
         + footer()
     )
