@@ -42,7 +42,9 @@ jobs:
         run: python -m unittest discover -s tests -p "test_trend_radar.py" -v
 
   dry-run:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish != true
+    # Scheduled runs are deliberately dry-run only until live candidates,
+    # image relevance and license attribution have been verified end-to-end.
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.publish != true)
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 8
@@ -62,7 +64,8 @@ jobs:
         run: python trend_radar.py --dry-run
 
   publish:
-    if: github.event_name == 'schedule' || inputs.publish == true
+    # Real publishing requires an intentional manual opt-in; schedule never publishes.
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == true
     needs: validate
     permissions:
       contents: write
