@@ -484,7 +484,7 @@ def main():
     published_count = 0
     for item in fresh[:MAX_POSTS_PER_RUN]:
         translated = translate_and_classify(item)
-        related = item.get("_related", []) or related_sources(item, all_items)
+        related = item.get("_related", [])
         message = build_post(item, translated, related)
         if DRY_RUN:
             print("[DRY RUN] " + message.replace("\n", " ")[:3500])
