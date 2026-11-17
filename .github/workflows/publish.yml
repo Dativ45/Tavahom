@@ -41,6 +41,7 @@ jobs:
           STATUS_ROOM_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: python bot.py
       - name: Persist duplicate-prevention state
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run == false }}
         run: |
           git config user.name "status-room-bot"
           git config user.email "actions@users.noreply.github.com"
