@@ -168,8 +168,16 @@ def fetch_gdelt_query(label, query):
             response.raise_for_status()
             content_type = response.headers.get("Content-Type", "").lower()
             if "json" not in content_type:
-                log.warning("GDELT returned non-JSON content for %s; skipping.", label)
-                return []
+                if attempt == 2:
+                    log.warning("GDELT continued to return non-JSON content for %s; skipping this run.", label)
+                    return []
+                delay = GDELT_RETRY_DELAYS[attempt]
+                log.warning(
+                    "GDELT returned non-JSON content for %s; retrying after %.0f seconds.",
+                    label, delay,
+                )
+                time.sleep(delay)
+                continue
             payload = response.json()
             if not isinstance(payload, dict):
                 return []
