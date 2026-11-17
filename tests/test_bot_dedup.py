@@ -20,6 +20,33 @@ def story(key, title, domain, published_ts=100, summary=""):
     }
 
 
+class StoryDeskRoutingTests(unittest.TestCase):
+    def test_chemical_weapons_plot_cannot_be_classified_as_livelihood(self):
+        item = story(
+            "chemical-plot",
+            "Iran rejects report of chemical weapons plot in Washington",
+            "example.com",
+            summary="Iran rejects report of a plot to use chemical weapons in Washington.",
+        )
+        self.assertEqual(bot.deterministic_desk_override(item, "معیشت"), "جنگ و امنیت")
+
+    def test_dirty_bomb_plot_is_routed_to_security(self):
+        item = story(
+            "dirty-bomb",
+            "Officials investigate alleged dirty bomb plot",
+            "example.com",
+        )
+        self.assertEqual(bot.deterministic_desk_override(item, "اقتصاد"), "جنگ و امنیت")
+
+    def test_ordinary_livelihood_story_keeps_model_category(self):
+        item = story(
+            "wages",
+            "Workers demand higher wages amid rising living costs",
+            "example.com",
+        )
+        self.assertEqual(bot.deterministic_desk_override(item, "معیشت"), "معیشت")
+
+
 class StoryDeduplicationTests(unittest.TestCase):
     def test_syndicated_copies_become_one_story(self):
         first = story(
