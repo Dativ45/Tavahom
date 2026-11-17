@@ -149,6 +149,33 @@ class TrendRadarTests(unittest.TestCase):
             )
         )
 
+    def test_gdelt_retries_non_json_response_with_bounded_backoff(self):
+        class FakeResponse:
+            def __init__(self, content_type, articles=None):
+                self.status_code = 200
+                self.headers = {"Content-Type": content_type}
+                self.articles = articles or []
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"articles": self.articles}
+
+        responses = [
+            FakeResponse("text/html"),
+            FakeResponse("text/html"),
+            FakeResponse("application/json", []),
+        ]
+        with patch.object(trend_radar, "wait_for_gdelt_slot"):
+            with patch.object(trend_radar.time, "sleep") as sleep:
+                with patch.object(trend_radar.requests, "get", side_effect=responses) as get:
+                    articles = trend_radar.fetch_gdelt_query("موضوعات جهان", "test")
+
+        self.assertEqual(articles, [])
+        self.assertEqual(get.call_count, 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [30.0, 60.0])
+
     def test_broad_discovery_uses_one_gdelt_request(self):
         self.assertEqual(len(trend_radar.GDELT_QUERIES), 1)
         self.assertGreaterEqual(trend_radar.MAX_ARTICLES_PER_QUERY, 100)
