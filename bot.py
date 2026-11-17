@@ -174,25 +174,57 @@ def fetch_items():
             print(f"Feed error [{source}]: {exc}")
     return items
 
+def headline_related(left, right):
+    """Conservative English-headline match used to group syndicated coverage."""
+    words = lambda s: {w for w in re.findall(r"[a-z0-9]{4,}", s.lower())}
+    left_words = words(left.get("title", ""))
+    right_words = words(right.get("title", ""))
+    if not left_words or not right_words:
+        return False
+    overlap = len(left_words & right_words) / max(1, min(len(left_words), len(right_words)))
+    similarity = SequenceMatcher(None, left["title"].lower(), right["title"].lower()).ratio()
+    return overlap >= 0.68 or similarity >= 0.80
+
+
+def cluster_stories(items):
+    """Group likely same-event headlines and return one primary item per cluster."""
+    clusters = []
+    for item in sorted(items, key=lambda x: x.get("published_ts", 0), reverse=True):
+        matches = []
+        for index, cluster in enumerate(clusters):
+            if any(headline_related(item, member) for member in cluster):
+                matches.append(index)
+        if not matches:
+            clusters.append([item])
+            continue
+        first = matches[0]
+        clusters[first].append(item)
+        for index in reversed(matches[1:]):
+            clusters[first].extend(clusters.pop(index))
+    result = []
+    for cluster in clusters:
+        cluster.sort(key=lambda x: (x.get("published_ts", 0), len(x.get("summary", ""))), reverse=True)
+        primary = dict(cluster[0])
+        primary["_related"] = [
+            source for source in cluster[1:]
+            if source.get("domain") and source.get("domain") != primary.get("domain")
+        ]
+        result.append(primary)
+    return result
+
+
 def related_sources(item, all_items):
     """Return distinct publisher records with strongly similar headlines.
 
     This is a coverage signal, not proof that the underlying claim is true.
     """
-    words = lambda s: {w for w in re.findall(r"[a-z0-9]{4,}", s.lower())}
-    base = words(item["title"])
     matches = []
     domains = {item.get("domain", "")}
     for other in all_items:
         domain = other.get("domain", "")
         if other["key"] == item["key"] or not domain or domain in domains:
             continue
-        other_words = words(other["title"])
-        if not base or not other_words:
-            continue
-        overlap = len(base & other_words) / max(1, min(len(base), len(other_words)))
-        similarity = SequenceMatcher(None, item["title"].lower(), other["title"].lower()).ratio()
-        if overlap >= 0.55 or similarity >= 0.62:
+        if headline_related(item, other):
             matches.append(other)
             domains.add(domain)
     return matches
@@ -445,12 +477,14 @@ def main():
     if not fresh:
         print("No unseen stories in the available feeds.")
         return
-    # No publication-age cutoff: old but previously unseen feed entries remain eligible.
+    # Collapse likely syndicated copies before translation and publication.
+    fresh = cluster_stories(fresh)
     fresh.sort(key=lambda item: item.get("published_ts", 0), reverse=True)
+    print(f"Deduplicated fresh feed entries into {len(fresh)} story cluster(s).")
     published_count = 0
     for item in fresh[:MAX_POSTS_PER_RUN]:
         translated = translate_and_classify(item)
-        related = related_sources(item, all_items)
+        related = item.get("_related", []) or related_sources(item, all_items)
         message = build_post(item, translated, related)
         if DRY_RUN:
             print("[DRY RUN] " + message.replace("\n", " ")[:3500])
