@@ -25,6 +25,8 @@ DRY_RUN = os.getenv("STATUS_ROOM_DRY_RUN", "false").strip().lower() in ("1", "tr
 
 def channel_footer():
     """Return a clickable channel join/follow link when Telegram exposes one."""
+    if DRY_RUN or not BOT_TOKEN or not CHANNEL:
+        return ""
     configured = os.getenv("STATUS_ROOM_CHANNEL_URL", "").strip()
     if configured.startswith("https://t.me/"):
         link = configured
