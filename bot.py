@@ -21,6 +21,7 @@ CONFIG_FILE = Path("editorial_config.json")
 MAX_POSTS_PER_RUN = 3  # Channel-local archive index verified
 MAX_SEEN = 5000
 MAX_STORY_AGE_SECONDS = 72 * 60 * 60
+DRY_RUN = os.getenv("STATUS_ROOM_DRY_RUN", "false").strip().lower() in ("1", "true", "yes")
 
 def channel_footer():
     """Return a clickable channel join/follow link when Telegram exposes one."""
@@ -55,7 +56,7 @@ def channel_footer():
                 print(f"WARNING: optional channel footer lookup failed ({exc}); continuing without footer.")
     return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
 
-if not BOT_TOKEN or not CHANNEL:
+if not DRY_RUN and (not BOT_TOKEN or not CHANNEL):
     raise SystemExit("Missing GitHub Actions secrets: TELEGRAM_BOT_TOKEN and/or TELEGRAM_CHAT_ID")
 if not GEMINI_KEY:
     raise SystemExit("Missing GEMINI_API_KEY: bilingual publishing requires translation.")
@@ -171,12 +172,18 @@ def fetch_items():
             print(f"Feed error [{source}]: {exc}")
     return items
 
-def related_source_count(item, all_items):
+def related_sources(item, all_items):
+    """Return distinct publisher records with strongly similar headlines.
+
+    This is a coverage signal, not proof that the underlying claim is true.
+    """
     words = lambda s: {w for w in re.findall(r"[a-z0-9]{4,}", s.lower())}
     base = words(item["title"])
-    domains = {item["domain"]}
+    matches = []
+    domains = {item.get("domain", "")}
     for other in all_items:
-        if other["key"] == item["key"] or other["domain"] == item["domain"]:
+        domain = other.get("domain", "")
+        if other["key"] == item["key"] or not domain or domain in domains:
             continue
         other_words = words(other["title"])
         if not base or not other_words:
@@ -184,8 +191,9 @@ def related_source_count(item, all_items):
         overlap = len(base & other_words) / max(1, min(len(base), len(other_words)))
         similarity = SequenceMatcher(None, item["title"].lower(), other["title"].lower()).ratio()
         if overlap >= 0.55 or similarity >= 0.62:
-            domains.add(other["domain"])
-    return len(domains)
+            matches.append(other)
+            domains.add(domain)
+    return matches
 
 def load_personas():
     try:
@@ -245,11 +253,13 @@ def translate_and_classify(item):
         data["summary_fa"] = data["translation_fa"][:500]
     return data
 
-def build_post(item, translated, source_count):
+def build_post(item, translated, related):
     alias = DESK_ALIASES.get(translated["desk"], "اطلس")
     archive_category = archive_category_for_desk(translated["desk"])
     tag = "🗂 <b>آرشیو: " + html.escape(archive_category or translated["desk"]) + "</b>"
     status = "⚠️ <b>تأیید مستقل نشده</b>"
+    if related:
+        status = "📰 <b>بازتاب هم‌زمان در چند رسانه</b>؛ این هم‌پوشانی به‌تنهایی تأیید قطعی خبر نیست."
     published = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(item["published_ts"])) if item["published_ts"] else "زمان انتشار در خوراک مشخص نیست"
     body = translated["translation_fa"] or translated["summary_fa"] or "جزئیات بیشتری در خوراک منبع موجود نبود."
     original = item.get("summary", "").strip()
@@ -269,7 +279,16 @@ def build_post(item, translated, source_count):
         + "🗞 منبع: " + html.escape(item["source"]) + "\n"
         + tag + "\n"
         + f"🕒 زمان منبع: {html.escape(published)}\n"
-        + f'🔗 <a href="{source_link}">مشاهده منبع</a>\n\n'
+        + f'🔗 <a href="{source_link}">مشاهده منبع اصلی</a>'
+        + (
+            "\n🧾 بازتاب در: " + "، ".join(
+                '<a href="' + html.escape(source["link"], quote=True) + '">' +
+                html.escape(source["source"][:70]) + "</a>"
+                for source in related[:3]
+            )
+            if related else ""
+        )
+        + "\n\n"
         + f"— <b>{html.escape(alias)}</b> | دبیر " + html.escape(translated["desk"])
         + channel_footer()
     )
@@ -409,7 +428,8 @@ def ensure_navigation(state):
 
 def main():
     state = load_state()
-    ensure_navigation(state)
+    if not DRY_RUN:
+        ensure_navigation(state)
     seen = set(state.get("seen", []))
     all_items = fetch_items()
     now = int(time.time())
@@ -428,8 +448,13 @@ def main():
     published_count = 0
     for item in fresh[:MAX_POSTS_PER_RUN]:
         translated = translate_and_classify(item)
-        source_count = related_source_count(item, all_items)
-        message_id = publish_story(item, build_post(item, translated, source_count))
+        related = related_sources(item, all_items)
+        message = build_post(item, translated, related)
+        if DRY_RUN:
+            print("[DRY RUN] " + message.replace("\n", " ")[:3500])
+            message_id = None
+        else:
+            message_id = publish_story(item, message)
         category = archive_category_for_desk(translated["desk"])
         if category and message_id:
             state.setdefault("archive", []).append({
@@ -438,13 +463,15 @@ def main():
                 "message_id": message_id,
             })
             state["archive"] = state["archive"][-500:]
-        seen.add(item["key"])
+        if not DRY_RUN:
+            seen.add(item["key"])
         published_count += 1
-        print(f"Published: {item['title']} [{item['source']}] message_id={message_id}")
-    state["seen"] = list(seen)
-    save_state(state)
-    update_navigation(state)
-    print(f"Published {published_count} item(s). Archive index updated.")
+        print(f"{'[DRY RUN] ' if DRY_RUN else 'Published: '}{item['title']} [{item['source']}] message_id={message_id}")
+    if not DRY_RUN:
+        state["seen"] = list(seen)
+        save_state(state)
+        update_navigation(state)
+    print(f"Processed {published_count} item(s); dry_run={DRY_RUN}.")
 
 if __name__ == "__main__":
     main()
