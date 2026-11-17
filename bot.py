@@ -236,15 +236,15 @@ def load_personas():
         return []
 
 SECURITY_DESK_PATTERNS = (
-    r"\\bchemical\\s+weapons?\\b",
-    r"\\bchemical\\s+attack\\b",
-    r"\\bdirty\\s+bomb\\b",
-    r"\\bterror(?:ist|ism)?\\s+(?:plot|attack|cell|group)\\b",
-    r"\\b(?:bomb|assassination)\\s+plot\\b",
-    r"\\bplot\\s+to\\s+(?:use|deploy|detonate|attack|kill)\\b",
-    r"\\bmissile\\s+(?:strike|attack|launch|test)\\b",
-    r"\\bairstrike\\b|\\bair\\s+strike\\b|\\binvasion\\b|\\bmilitary\\s+offensive\\b",
-    r"\\bhostage(?:s)?\\b|\\bwar\\b|\\barmed\\s+conflict\\b",
+    r"\bchemical\s+weapons?\b",
+    r"\bchemical\s+attack\b",
+    r"\bdirty\s+bomb\b",
+    r"\bterror(?:ist|ism)?\s+(?:plot|attack|cell|group)\b",
+    r"\b(?:bomb|assassination)\s+plot\b",
+    r"\bplot\s+to\s+(?:use|deploy|detonate|attack|kill)\b",
+    r"\bmissile\s+(?:strike|attack|launch|test)\b",
+    r"\bairstrike\b|\bair\s+strike\b|\binvasion\b|\bmilitary\s+offensive\b",
+    r"\bhostage(?:s)?\b|\bwar\b|\barmed\s+conflict\b",
 )
 
 
@@ -269,7 +269,7 @@ def translate_and_classify(item):
         "faithful Persian translation of the supplied excerpt, not an invented full-article translation. "
         "summary_fa is a concise 1-2 sentence Persian digest. Choose exactly one desk from: "
         "ورزش، سیاست، اقتصاد، معیشت، مهاجرت، جنگ و امنیت، فناوری، فرهنگ و جامعه، علم و سلامت، محیط زیست، بین‌الملل. "
-        "If the excerpt is empty, say that the source feed provided only a headline.\\n\n"
+        "If the excerpt is empty, say that the source feed provided only a headline.\n\n"
         + json.dumps({"source": item["source"], "headline": item["title"], "excerpt": item["summary"]}, ensure_ascii=False)
     )
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
