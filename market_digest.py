@@ -42,7 +42,7 @@ def main():
     if val is None: continue
     pct=c.get("price_change_percentage_24h"); delta=(" | ۲۴ساعت: %+.2f٪"%pct) if isinstance(pct,(int,float)) else ""
     lines.append(f"• {c['name']}: <b>USD {val:,.2f}</b> | حدود <b>{toman(val*usd)} تومان</b>{delta}")
-   if lines: sections.append("₿ <b>رمزارزهای منتخب</b>\n"+"\n".join(lines)+"\n<small>قیمت دلاری CoinGecko؛ تبدیل تقریبی با دلار آزاد همین تابلو.</small>")
+   if lines: sections.append("₿ <b>رمزارزهای منتخب</b>\n"+"\n".join(lines)+"\n<i>قیمت دلاری CoinGecko؛ تبدیل تقریبی با دلار آزاد همین تابلو.</i>")
   except Exception as e: print("CoinGecko unavailable:",str(e)[:180])
  if evening:
   try:
@@ -65,7 +65,7 @@ def main():
      label=html.escape(name)
      if isinstance(link,str) and link.startswith("http"): label='<a href="'+html.escape(link,quote=True)+'">'+label+'</a>'
      lines.append(f"• {label}: <b>{toman(price)} تومان</b> | {pts} داده")
-    sections.append("🚘 <b>قیمت خودروهای منتخب</b>\n"+"\n".join(lines)+"\n<small>قیمت میانهٔ خودرو کارکرده با بدنه سالم؛ تعداد داده کنار هر مدل آمده است.</small>\nمنبع: <a href=\"https://nemuda.com/data\">نمودا</a>")
+    sections.append("🚘 <b>قیمت خودروهای منتخب</b>\n"+"\n".join(lines)+"\n<i>قیمت میانهٔ خودرو کارکرده با بدنه سالم؛ تعداد داده کنار هر مدل آمده است.</i>\nمنبع: <a href=\"https://nemuda.com/data\">نمودا</a>")
   except Exception as e: print("Vehicle data unavailable:",str(e)[:180])
  if not sections:
   print("No sufficiently fresh price data; nothing posted.")
