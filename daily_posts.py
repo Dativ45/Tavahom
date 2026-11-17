@@ -1,5 +1,6 @@
 import os
 import html
+import time
 import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -8,6 +9,25 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHANNEL = os.getenv("TELEGRAM_CHAT_ID")
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+
+
+def post_with_retry(url, **kwargs):
+    """Retry transient Gemini network failures without changing the request."""
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = requests.post(url, **kwargs)
+            response.raise_for_status()
+            return response
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            last_error = exc
+            if attempt == 2:
+                break
+            delay = 3 * (attempt + 1)
+            print(f"Gemini network timeout; retry {attempt + 1}/2 in {delay}s.")
+            time.sleep(delay)
+    raise RuntimeError(f"Gemini request failed after 3 attempts: {last_error}")
+
 
 def channel_footer():
     configured = os.getenv("STATUS_ROOM_CHANNEL_URL", "").strip()
@@ -27,6 +47,7 @@ def channel_footer():
         return ""
     return '\n\n📣 <b>دنبال‌کردن اتاق وضعیت:</b> <a href="' + html.escape(link, quote=True) + '">عضویت در کانال</a>'
 
+
 if not BOT_TOKEN or not CHANNEL or not GEMINI_KEY:
     raise SystemExit("Missing required Telegram or Gemini secrets.")
 
@@ -40,7 +61,7 @@ if slot == "صبح":
     )
 elif slot == "ظهر":
     brief = (
-        "یک پیام کوتاه ظهرگاهی فارسی برای کانال خبری Status Room بنویس؛ تازه‌نفس، مثبت و کمی بانمک، " 
+        "یک پیام کوتاه ظهرگاهی فارسی برای کانال خبری Status Room بنویس؛ تازه‌نفس، مثبت و کمی بانمک، "
         "حداکثر ۳ جمله، مناسب خانواده و بدون نصیحت کلیشه‌ای یا نقل‌قول ساختگی."
     )
 else:
@@ -51,17 +72,15 @@ else:
     )
 
 url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
-response = requests.post(
+response = post_with_retry(
     url,
     headers={"x-goog-api-key": GEMINI_KEY, "Content-Type": "application/json"},
     json={
         "contents": [{"parts": [{"text": brief}]}],
         "generationConfig": {"temperature": 0.75, "maxOutputTokens": 220},
     },
-    timeout=45,
+    timeout=(10, 35),
 )
-if not response.ok:
-    raise SystemExit(f"Gemini error: HTTP {response.status_code}")
 data = response.json()
 parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
 message = " ".join(p.get("text", "").strip() for p in parts if p.get("text")).strip()
