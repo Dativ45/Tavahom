@@ -235,6 +235,31 @@ def load_personas():
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
+SECURITY_DESK_PATTERNS = (
+    r"\\bchemical\\s+weapons?\\b",
+    r"\\bchemical\\s+attack\\b",
+    r"\\bdirty\\s+bomb\\b",
+    r"\\bterror(?:ist|ism)?\\s+(?:plot|attack|cell|group)\\b",
+    r"\\b(?:bomb|assassination)\\s+plot\\b",
+    r"\\bplot\\s+to\\s+(?:use|deploy|detonate|attack|kill)\\b",
+    r"\\bmissile\\s+(?:strike|attack|launch|test)\\b",
+    r"\\bairstrike\\b|\\bair\\s+strike\\b|\\binvasion\\b|\\bmilitary\\s+offensive\\b",
+    r"\\bhostage(?:s)?\\b|\\bwar\\b|\\barmed\\s+conflict\\b",
+)
+
+
+def deterministic_desk_override(item, proposed_desk):
+    """Apply high-confidence safety rules after model classification.
+
+    Security-related claims must never be routed to the livelihood desk merely
+    because the language model returned an incorrect category.
+    """
+    source_text = " ".join((item.get("title", ""), item.get("summary", ""))).lower()
+    if any(re.search(pattern, source_text, re.I) for pattern in SECURITY_DESK_PATTERNS):
+        return "جنگ و امنیت"
+    return proposed_desk
+
+
 def translate_and_classify(item):
     prompt = (
         "You are the bilingual desk editor of Status Room. Return valid JSON only with keys "
@@ -277,6 +302,10 @@ def translate_and_classify(item):
     allowed = set(DESK_ALIASES)
     if data.get("desk") not in allowed:
         data["desk"] = "بین‌الملل"
+    proposed_desk = data["desk"]
+    data["desk"] = deterministic_desk_override(item, proposed_desk)
+    if data["desk"] != proposed_desk:
+        print(f"Desk override: {proposed_desk} -> {data['desk']} [{item.get('title', '')[:120]}]")
     for field in ("title_fa", "translation_fa", "summary_fa"):
         data[field] = clean(str(data.get(field, "")))[:2600]
     if not data["title_fa"]:
