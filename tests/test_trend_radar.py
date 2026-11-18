@@ -193,6 +193,30 @@ class TrendRadarTests(unittest.TestCase):
         )
 
 
+    def test_topic_duplicate_is_blocked_across_tehran_dates_for_seven_days(self):
+        state = {
+            "images_posted": [
+                {"date": "2026-11-15", "topic_key": "2026-11-15:abc", "image_id": "image-old"}
+            ]
+        }
+        self.assertTrue(
+            trend_radar.already_posted(
+                state, "2026-11-18", {"fingerprint": "abc"}, {"id": "image-new"}
+            )
+        )
+
+    def test_topic_can_be_reconsidered_after_seven_day_cooldown(self):
+        state = {
+            "images_posted": [
+                {"date": "2026-11-01", "topic_key": "2026-11-01:abc", "image_id": "image-old"}
+            ]
+        }
+        self.assertFalse(
+            trend_radar.already_posted(
+                state, "2026-11-18", {"fingerprint": "abc"}, {"id": "image-new"}
+            )
+        )
+
     def test_rejects_unsafe_family_content(self):
         unsafe = {
             "topic": "Breaking shooting incident",
