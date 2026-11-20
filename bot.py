@@ -439,8 +439,11 @@ def main():
             })
             state["archive"] = state["archive"][-500:]
         seen.add(item["key"])
+        state["seen"] = list(seen)
+        save_state(state)
         published_count += 1
         print(f"Published: {item['title']} [{item['source']}] message_id={message_id}")
+    # State is checkpointed after each successful send; this final write is idempotent.
     state["seen"] = list(seen)
     save_state(state)
     update_navigation(state)
