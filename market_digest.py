@@ -16,20 +16,24 @@ def channel_footer():
 now=datetime.now(ZoneInfo("Asia/Tehran")); evening=now.hour>=15
 def get(url,params=None):
  r=requests.get(url,params=params,headers={"User-Agent":"StatusRoom/1.0"},timeout=25); r.raise_for_status(); return r.json()
-def toman(n): return f"{int(round(n)):,}".translate(str.maketrans("0123456789","۰۱۲۳۴۵۶۷۸۹"))
+def format_toman(n): return f"{int(round(n)):,}".translate(str.maketrans("0123456789","۰۱۲۳۴۵۶۷۸۹"))
+def rial_to_toman(n): return format_toman(float(n) / 10)
 def main():
  sections=[]; usd=None
  try:
-  p=get("https://raw.githubusercontent.com/hidevs/tabloo/main/data/popular.json"); rows={x.get("symbol"):x for x in p.get("data",[])}
+  p=get("https://raw.githubusercontent.com/hidevs/tabloo/main/data/popular.json")
+  if (p.get("meta") or {}).get("stale"):
+   raise RuntimeError("Tabloo dataset is marked stale; suppressing market publication.")
+  rows={x.get("symbol"):x for x in p.get("data",[])}
   for sym in ["USD_IRR_FREE","EUR_IRR_FREE","GOLD_18K_IRR","COIN_EMAMI_IRR"]:
    x=rows.get(sym)
    if not x or x.get("price") is None or x.get("stale"): continue
    stamp=x.get("timestamp_tehran","")
    try:
     dt=datetime.fromisoformat(stamp)
-    if (now-dt).total_seconds()>64800: continue
+    if (now-dt).total_seconds()>21600 or (dt-now).total_seconds()>300: continue
    except Exception: continue
-   sections.append(f"• {html.escape(x.get('name_fa',sym))}: <b>{toman(x['price'])} تومان</b> ({x.get('change_pct',0):+.2f}٪) | زمان داده: {dt.strftime('%H:%M')} تهران")
+   sections.append(f"• {html.escape(x.get('name_fa',sym))}: <b>{rial_to_toman(x['price'])} تومان</b> ({x.get('change_pct',0):+.2f}٪) | زمان داده: {dt.strftime('%H:%M')} تهران")
    if sym=="USD_IRR_FREE": usd=x["price"]
   if sections: sections.insert(0,"💱 <b>ارز و طلا | بازار آزاد</b>")
  except Exception as e: print("Iran market feed unavailable:",str(e)[:180])
@@ -41,8 +45,8 @@ def main():
     val=c.get("current_price")
     if val is None: continue
     pct=c.get("price_change_percentage_24h"); delta=(" | ۲۴ساعت: %+.2f٪"%pct) if isinstance(pct,(int,float)) else ""
-    lines.append(f"• {c['name']}: <b>USD {val:,.2f}</b> | حدود <b>{toman(val*usd)} تومان</b>{delta}")
-   if lines: sections.append("₿ <b>رمزارزهای منتخب</b>\n"+"\n".join(lines)+"\n<small>قیمت دلاری CoinGecko؛ تبدیل تقریبی با دلار آزاد همین تابلو.</small>")
+    lines.append(f"• {c['name']}: <b>USD {val:,.2f}</b> | حدود <b>{rial_to_toman(val*usd)} تومان</b>{delta}")
+   if lines: sections.append("₿ <b>رمزارزهای منتخب</b>\n"+"\n".join(lines)+"\n<i>قیمت دلاری CoinGecko؛ تبدیل تقریبی با دلار آزاد همین تابلو.</i>")
   except Exception as e: print("CoinGecko unavailable:",str(e)[:180])
  if evening:
   try:
@@ -64,8 +68,8 @@ def main():
     for name,price,pts,link in chosen[:8]:
      label=html.escape(name)
      if isinstance(link,str) and link.startswith("http"): label='<a href="'+html.escape(link,quote=True)+'">'+label+'</a>'
-     lines.append(f"• {label}: <b>{toman(price)} تومان</b> | {pts} داده")
-    sections.append("🚘 <b>قیمت خودروهای منتخب</b>\n"+"\n".join(lines)+"\n<small>قیمت میانهٔ خودرو کارکرده با بدنه سالم؛ تعداد داده کنار هر مدل آمده است.</small>\nمنبع: <a href=\"https://nemuda.com/data\">نمودا</a>")
+     lines.append(f"• {label}: <b>{format_toman(price)} تومان</b> | {pts} داده")
+    sections.append("🚘 <b>قیمت خودروهای منتخب</b>\n"+"\n".join(lines)+"\n<i>قیمت میانهٔ خودرو کارکرده با بدنه سالم؛ تعداد داده کنار هر مدل آمده است.</i>\nمنبع: <a href=\"https://nemuda.com/data\">نمودا</a>")
   except Exception as e: print("Vehicle data unavailable:",str(e)[:180])
  if not sections:
   print("No sufficiently fresh price data; nothing posted.")
