@@ -206,8 +206,25 @@ def fetch_gdelt_query(label, query):
                     "query_category": infer_category(title) if label == "موضوعات جهان" else label,
                 })
             return cleaned
-        except (requests.RequestException, ValueError, TypeError) as exc:
+        except requests.RequestException as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            retryable = (
+                isinstance(exc, (requests.Timeout, requests.ConnectionError))
+                or (isinstance(status, int) and 500 <= status < 600)
+            )
+            if retryable and attempt < 2:
+                delay = GDELT_RETRY_DELAYS[attempt]
+                failure_kind = "HTTP %s" % status if status else "network timeout/connection error"
+                log.warning(
+                    "GDELT transient %s for %s; retrying after %.0f seconds.",
+                    failure_kind, label, delay,
+                )
+                time.sleep(delay)
+                continue
             log.warning("GDELT query failed for %s: %s", label, exc)
+            return []
+        except (ValueError, TypeError) as exc:
+            log.warning("GDELT response could not be parsed for %s: %s", label, exc)
             return []
     return []
 
@@ -576,6 +593,23 @@ def already_posted(state, today, item, image):
     return False
 
 
+def record_published_image(state, today, item, image, message_id):
+    """Persist each Telegram-accepted image immediately to reduce duplicate risk."""
+    entry = {
+        "date": today,
+        "topic_key": today + ":" + item["fingerprint"],
+        "topic": item["topic"][:180],
+        "image_id": str(image.get("id") or ""),
+        "message_id": message_id,
+        "license": license_label(image),
+        "source_url": image.get("foreign_landing_url"),
+    }
+    state.setdefault("images_posted", []).append(entry)
+    state["last_image_run_tehran"] = datetime.now(TEHRAN).isoformat()
+    save_state(state)
+    return entry
+
+
 def daily_image_count(state, today):
     return sum(
         1 for entry in state.get("images_posted", [])
@@ -668,16 +702,7 @@ def main(argv=None):
             continue
 
         message_id = send_photo(payload, caption)
-        entry = {
-            "date": today,
-            "topic_key": today + ":" + item["fingerprint"],
-            "topic": item["topic"][:180],
-            "image_id": str(image.get("id") or ""),
-            "message_id": message_id,
-            "license": license_label(image),
-            "source_url": image.get("foreign_landing_url"),
-        }
-        state.setdefault("images_posted", []).append(entry)
+        entry = record_published_image(state, today, item, image, message_id)
         seen_images.add(entry["image_id"])
         published += 1
         log.info("Published licensed archive image for topic %s; message_id=%s", item["topic"], message_id)
