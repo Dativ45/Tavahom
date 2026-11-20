@@ -25,7 +25,7 @@ MAX_SEEN = 6000
 
 # Separate targeted searches keep urgent regional events out of the general-news queue.
 SEARCHES = [
-    ("Iran / Israel escalation", '(Iran OR Israel OR "Persian Gulf" OR Hormuz) (strike OR missile OR drone OR attack OR military OR escalation OR ceasefire)'),
+    ("Iran / Israel escalation", '(Iran OR Israel OR Oman OR "Persian Gulf" OR Hormuz OR "Gulf of Oman") (strike OR missile OR drone OR attack OR military OR escalation OR ceasefire OR tanker OR vessel OR projectile OR fire)'),
     ("US / CENTCOM / Gulf", '(CENTCOM OR Pentagon OR "US forces" OR "US Navy") (Iran OR Gulf OR Israel OR Iraq OR Syria)'),
     ("Maritime security", '("Strait of Hormuz" OR "Gulf of Oman" OR "Red Sea") (ship OR tanker OR attack OR seizure OR closure OR naval)'),
     ("Regional military activity", '(Israel OR Lebanon OR Syria OR Iraq OR Yemen) (airstrike OR missile OR drone OR interception OR military)'),
@@ -37,7 +37,7 @@ EVENT_PATTERNS = [
     (3, r'\b(airstrike|air strike|missile|drone strike|rocket attack|projectile strike|vessel struck|tanker struck|fire on board|ship on fire|explosion|explosions|bombing|bombed|invasion|intercepted|interception|shot down|killed|casualties|warship|naval attack|seized tanker|ship seized|hormuz closed|strait closed|ballistic missile|intercepted drone)\b'),
     (2, r'\b(deploys?|deployment|military buildup|troops|carrier|sanctions|ceasefire|ultimatum|evacuation|embassy|nuclear deal|nuclear talks|enrichment|mobiliz\w*|alert level|airspace closed|shipping disruption|oil disruption|militia stronghold|security forces deploy|oil smuggling|ship-to-ship transfer)\b'),
 ]
-REGION_PATTERN = re.compile(r'\b(iran|israel|iraq|syria|lebanon|yemen|gulf|hormuz|centcom|persian gulf|gulf of oman|red sea|saudi arabia|qatar|bahrain|uae|united arab emirates|pentagon)\b', re.I)
+REGION_PATTERN = re.compile(r'\b(iran|israel|iraq|syria|lebanon|yemen|oman|gulf|hormuz|centcom|persian gulf|gulf of oman|red sea|saudi arabia|qatar|bahrain|uae|united arab emirates|pentagon)\b', re.I)
 
 
 def clean(value):
