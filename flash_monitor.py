@@ -212,7 +212,7 @@ def main():
         score = event_score(item)
         if item["key"] in seen or age < -300 or age > MAX_AGE_SECONDS or score < 2:
             continue
-        normalized_title = re.sub(r"[^a-z0-9\\u0600-\\u06ff]+", " ", item["title"].lower()).strip()
+        normalized_title = re.sub(r"[^a-z0-9\u0600-\u06ff]+", " ", item["title"].lower()).strip()
         if any(SequenceMatcher(None, normalized_title, old_title).ratio() >= 0.90 for old_title in candidate_titles):
             print("Skipping near-duplicate flash headline:", item["title"][:140])
             continue
