@@ -176,6 +176,76 @@ class TrendRadarTests(unittest.TestCase):
         self.assertEqual(get.call_count, 3)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [30.0, 60.0])
 
+    def test_gdelt_retries_read_timeout_with_bounded_backoff(self):
+        class FakeResponse:
+            status_code = 200
+            headers = {"Content-Type": "application/json"}
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"articles": []}
+
+        responses = [
+            trend_radar.requests.Timeout("read timed out"),
+            FakeResponse(),
+        ]
+        with patch.object(trend_radar, "wait_for_gdelt_slot"):
+            with patch.object(trend_radar.time, "sleep") as sleep:
+                with patch.object(trend_radar.requests, "get", side_effect=responses) as get:
+                    articles = trend_radar.fetch_gdelt_query("موضوعات جهان", "test")
+
+        self.assertEqual(articles, [])
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [30.0])
+
+    def test_gdelt_retries_transient_server_error(self):
+        class FakeResponse:
+            def __init__(self, status_code):
+                self.status_code = status_code
+                self.headers = {"Content-Type": "application/json"}
+
+            def raise_for_status(self):
+                if self.status_code >= 400:
+                    raise trend_radar.requests.HTTPError(
+                        "%d Server Error" % self.status_code, response=self
+                    )
+
+            def json(self):
+                return {"articles": []}
+
+        responses = [FakeResponse(503), FakeResponse(200)]
+        with patch.object(trend_radar, "wait_for_gdelt_slot"):
+            with patch.object(trend_radar.time, "sleep") as sleep:
+                with patch.object(trend_radar.requests, "get", side_effect=responses) as get:
+                    articles = trend_radar.fetch_gdelt_query("موضوعات جهان", "test")
+
+        self.assertEqual(articles, [])
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [30.0])
+
+    def test_successful_publish_checkpoint_is_persisted_immediately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state_path = Path(directory) / "trend_state.json"
+            with patch.object(trend_radar, "STATE_FILE", state_path):
+                state = {"posted": [], "images_posted": []}
+                item = {"fingerprint": "abc123", "topic": "NASA lunar mission"}
+                image = {
+                    "id": "openverse-image-42",
+                    "license": "by",
+                    "license_version": "4.0",
+                    "foreign_landing_url": "https://source.example/image",
+                }
+                entry = trend_radar.record_published_image(
+                    state, "2026-11-20", item, image, 12345
+                )
+                saved = json.loads(state_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(entry["message_id"], 12345)
+        self.assertEqual(saved["images_posted"][0]["image_id"], "openverse-image-42")
+        self.assertEqual(trend_radar.daily_image_count(saved, "2026-11-20"), 1)
+
     def test_broad_discovery_uses_one_gdelt_request(self):
         self.assertEqual(len(trend_radar.GDELT_QUERIES), 1)
         self.assertGreaterEqual(trend_radar.MAX_ARTICLES_PER_QUERY, 100)
