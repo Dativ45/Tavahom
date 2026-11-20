@@ -5,6 +5,7 @@ import time
 import html
 import hashlib
 import calendar
+from difflib import SequenceMatcher
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
@@ -17,7 +18,8 @@ GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 DRY_RUN = os.getenv("FLASH_DRY_RUN", "false").lower() == "true"
 STATE_FILE = Path("flash_state.json")
-MAX_AGE_SECONDS = 4 * 60 * 60
+# Keep a full-day recovery window so delayed Actions runs do not silently discard major events.
+MAX_AGE_SECONDS = 24 * 60 * 60
 MAX_ALERTS_PER_RUN = 5
 MAX_SEEN = 6000
 
@@ -32,8 +34,8 @@ SEARCHES = [
 ]
 
 EVENT_PATTERNS = [
-    (3, r'\b(airstrike|air strike|missile|drone strike|rocket attack|explosion|explosions|bombing|bombed|invasion|intercepted|interception|shot down|killed|casualties|warship|naval attack|seized tanker|ship seized|hormuz closed|strait closed)\b'),
-    (2, r'\b(deploys?|deployment|military buildup|troops|carrier|sanctions|ceasefire|ultimatum|evacuation|embassy|nuclear deal|nuclear talks|enrichment|mobiliz\w*|alert level|airspace closed|shipping disruption|oil disruption)\b'),
+    (3, r'\b(airstrike|air strike|missile|drone strike|rocket attack|projectile strike|vessel struck|tanker struck|fire on board|ship on fire|explosion|explosions|bombing|bombed|invasion|intercepted|interception|shot down|killed|casualties|warship|naval attack|seized tanker|ship seized|hormuz closed|strait closed|ballistic missile|intercepted drone)\b'),
+    (2, r'\b(deploys?|deployment|military buildup|troops|carrier|sanctions|ceasefire|ultimatum|evacuation|embassy|nuclear deal|nuclear talks|enrichment|mobiliz\w*|alert level|airspace closed|shipping disruption|oil disruption|militia stronghold|security forces deploy|oil smuggling|ship-to-ship transfer)\b'),
 ]
 REGION_PATTERN = re.compile(r'\b(iran|israel|iraq|syria|lebanon|yemen|gulf|hormuz|centcom|persian gulf|gulf of oman|red sea|saudi arabia|qatar|bahrain|uae|united arab emirates|pentagon)\b', re.I)
 
@@ -204,11 +206,17 @@ def main():
     now = int(time.time())
     items = fetch_items()
     candidates = []
+    candidate_titles = []
     for item in items:
         age = now - item["published_ts"] if item["published_ts"] else MAX_AGE_SECONDS + 1
         score = event_score(item)
         if item["key"] in seen or age < -300 or age > MAX_AGE_SECONDS or score < 2:
             continue
+        normalized_title = re.sub(r"[^a-z0-9\\u0600-\\u06ff]+", " ", item["title"].lower()).strip()
+        if any(SequenceMatcher(None, normalized_title, old_title).ratio() >= 0.90 for old_title in candidate_titles):
+            print("Skipping near-duplicate flash headline:", item["title"][:140])
+            continue
+        candidate_titles.append(normalized_title)
         candidates.append((score, item))
     candidates.sort(key=lambda pair: (pair[0], pair[1]["published_ts"]), reverse=True)
     if not candidates:
@@ -223,10 +231,12 @@ def main():
         else:
             message_id = publish(message)
             print(f"Published flash alert: {item['title'][:160]} message_id={message_id}")
+            # Persist immediately after each confirmed Telegram acceptance. A later Gemini/API
+            # failure must not cause already-sent alerts to be replayed on the next run.
+            seen.add(item["key"])
+            state["seen"] = list(seen)[-MAX_SEEN:]
+            save_state(state)
         published_keys.append(item["key"])
-    if not DRY_RUN:
-        state["seen"] = list(seen.union(published_keys))[-MAX_SEEN:]
-        save_state(state)
     print(f"Processed {len(published_keys)} flash alert(s); dry_run={DRY_RUN}.")
 
 
