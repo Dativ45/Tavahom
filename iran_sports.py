@@ -34,6 +34,12 @@ SPORT_TERMS=re.compile(
  r"بسکتبال|هندبال|وزنه.?برداری|تنیس|فوتسال|ورزش زنان|Iran|Iranian|football|"
  r"wrestling|volleyball|basketball",re.I
 )
+IRAN_SPORT_RELEVANCE=re.compile(
+ r"ایران|ایرانی|پرسپولیس|استقلال|تراکتور|سپاهان|فولاد|ملوان|ذوب.?آهن|"
+ r"فجر سپاسی|چادرملو|لیگ برتر ایران|جام حذفی ایران|تیم ملی ایران|"
+ r"iran|iranian|persian gulf pro league|iran pro league|iran national team|"
+ r"iranian wrestler|iranian volleyball|iranian basketball",re.I
+)
 
 def channel_footer():
     configured=os.getenv("STATUS_ROOM_CHANNEL_URL","").strip()
@@ -106,7 +112,7 @@ def collect(kind):
                     continue
                 if kind=="iran" and not IRAN_TERMS.search(title+" "+excerpt):
                     continue
-                if kind=="sports" and source not in ("BBC Sport","BBC Sport Football","Sky Sports","The Guardian Sport") and not SPORT_TERMS.search(title+" "+excerpt):
+                if kind=="sports" and (not SPORT_TERMS.search(title+" "+excerpt) or not IRAN_SPORT_RELEVANCE.search(title+" "+excerpt)):
                     continue
                 parsed=entry.get("published_parsed") or entry.get("updated_parsed")
                 timestamp=calendar.timegm(parsed) if parsed else 0
@@ -133,7 +139,7 @@ def collect(kind):
                     title=clean(entry.get("title"))
                     link=entry.get("link","")
                     excerpt=clean(entry.get("summary",entry.get("description","")))[:1400]
-                    if not title or not link.startswith(("http://","https://")) or not SPORT_TERMS.search(title+" "+excerpt):
+                    if not title or not link.startswith(("http://","https://")) or not SPORT_TERMS.search(title+" "+excerpt) or not IRAN_SPORT_RELEVANCE.search(title+" "+excerpt):
                         continue
                     parsed=entry.get("published_parsed") or entry.get("updated_parsed")
                     timestamp=calendar.timegm(parsed) if parsed else 0
