@@ -31,8 +31,9 @@ FEEDS={
  ]}
 SPORT_TERMS=re.compile(
  r"فوتبال|تیم ملی|لیگ برتر|پرسپولیس|استقلال|تراکتور|سپاهان|کشتی|والیبال|"
- r"بسکتبال|هندبال|وزنه.?برداری|تنیس|فوتسال|ورزش زنان|Iran|Iranian|football|"
- r"wrestling|volleyball|basketball",re.I
+ r"بسکتبال|هندبال|وزنه.?برداری|تنیس|فوتسال|تکواندو|گلف|شنا|دوومیدانی|اسکی|دوچرخه.?سواری|"
+ r"ورزش زنان|Iran|Iranian|football|wrestling|volleyball|basketball|handball|futsal|"
+ r"taekwondo|golf|swimming|athletics|track and field|skiing|cycling|weightlifting|fencing",re.I
 )
 
 def channel_footer():
@@ -122,6 +123,16 @@ def collect(kind):
             "Iran Iranian football national team OR Persian Gulf Pro League OR Iran football",
             "Iran wrestling OR Iranian wrestlers OR Iran volleyball OR Iranian volleyball",
             "Iran women's sports OR Iranian athletes OR Iran basketball",
+            "Iran taekwondo OR Iranian taekwondo",
+            "Iran weightlifting OR Iranian weightlifters",
+            "Iran athletics OR Iranian track and field",
+            "Iran swimming OR Iranian swimmers",
+            "Iran cycling OR Iranian cyclists",
+            "Iran golf OR Iranian golfers",
+            "Iran skiing OR Iranian skiers",
+            "Iran fencing OR Iranian fencers",
+            "Iran handball OR Iranian handball",
+            "Iran futsal OR Iranian futsal",
         ]
         for query in queries:
             try:

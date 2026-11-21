@@ -126,8 +126,8 @@ def select_and_summarize(items):
         if not summary:
             continue
         used.add(index)
-        result.append((items[index], summary[:650]))
-        if len(result) == 7:
+        result.append((items[index], summary[:360]))
+        if len(result) == 5:
             break
     return result
 
