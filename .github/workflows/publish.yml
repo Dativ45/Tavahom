@@ -2,6 +2,12 @@ name: Status Room live news publisher
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Safe preview only; do not post to Telegram"
+        required: true
+        type: boolean
+        default: true
   schedule:
     # Best-effort GitHub polling; scheduled starts can be delayed by GitHub.
     - cron: "2-59/5 * * * *"
@@ -32,8 +38,10 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-3.1-flash-lite
+          STATUS_ROOM_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: python bot.py
       - name: Persist duplicate-prevention state
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.dry_run == false }}
         run: |
           git config user.name "status-room-bot"
           git config user.email "actions@users.noreply.github.com"
