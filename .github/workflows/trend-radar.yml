@@ -72,6 +72,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        id: checkout
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -86,6 +87,7 @@ jobs:
           TREND_DRY_RUN: "0"
         run: python trend_radar.py --publish
       - name: Persist image duplicate-prevention state
+        if: always() && steps.checkout.outcome == 'success'
         run: |
           git config user.name "status-room-bot"
           git config user.email "actions@users.noreply.github.com"
